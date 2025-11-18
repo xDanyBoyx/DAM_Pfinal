@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "369904284874",
+    "project_id": "dam-pfinal",
+    "storage_bucket": "dam-pfinal.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:369904284874:android:efa2eed6f5ddf428c87033",
+        "android_client_info": {
+          "package_name": "mx.edu.ittepic.dam_pfinal"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAXGr9Jb_hqxvN_bpt976capMtMaZot4RI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
