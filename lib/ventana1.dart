@@ -1,12 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:dam_pfinal/main.dart';
 import 'package:dam_pfinal/authentication/authentication.dart';
+<<<<<<< HEAD
 import 'package:dam_pfinal/controlador/basededatos.dart';
 import 'package:dam_pfinal/modelo/aviso.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+=======
+import 'package:dam_pfinal/modelo/guardia.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:dam_pfinal/VentanaValidacion.dart';
+
+>>>>>>> f3ec33b33cc7842680fc8c2c6c9db9ae25e5575e
 
 class VentanaGuardia extends StatefulWidget {
-  const VentanaGuardia({super.key});
+  final String uid;
+
+  const VentanaGuardia({super.key, required this.uid});
 
   @override
   State<VentanaGuardia> createState() => _VentanaGuardiaState();
@@ -18,12 +27,34 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
   final tituloController = TextEditingController();
   final contenidoController = TextEditingController();
 
+<<<<<<< HEAD
   // Se define la lista de opciones de widgets (ahora métodos de la clase)
   late final List<Widget> _widgetOptions = <Widget>[
     dataUsuarios(), // 0. USUARIOS (Map)
     n1(),           // 1. N1 (Incidencias/Users)
     n2(),           // 2. N2 (Alertas/Incidencias)
     _pantallaGestionAvisos(), // 3. Avisos (Tu Módulo G-6, G-7)
+=======
+
+  Future<Guardia?> obtenerDatosDeGuardia(String uid) async {
+    try {
+      DocumentSnapshot doc = await FirebaseFirestore.instance.collection('guardia').doc(uid).get();
+      if (doc.exists) {
+        return Guardia.fromFirestore(doc.data() as Map<String, dynamic>, doc.id);
+      }
+    } catch (e) {
+      print("Error al obtener datos del guardia: $e");
+    }
+    return null;
+  }
+
+
+  static final List<Widget> _widgetOptions = <Widget>[
+    dataUsuarios(),
+    n1(),
+    n2(),
+    n3(),
+>>>>>>> f3ec33b33cc7842680fc8c2c6c9db9ae25e5575e
   ];
 
   void _onItemTapped(int index) {
@@ -36,32 +67,44 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading: true,
+        backgroundColor: Colors.indigo.shade300,
         title: const Text(
-          "Fraccionamiento",
-          style: TextStyle(color: Colors.white),
+          "Guardia",
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
-        backgroundColor: Colors.indigo.shade300,
-      ),
-      body: Center(
-        child: _widgetOptions.elementAt(_selectedIndex),
+        elevation: 0,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            bottomRight: Radius.circular(100),
+          ),
+        ),
       ),
 
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
-            icon: Icon(Icons.map), label: 'Map',
+            icon: Icon(Icons.map), label: 'Mapa',
           ),
           BottomNavigationBarItem(
+<<<<<<< HEAD
             icon: Icon(Icons.access_time_outlined), label: 'Incidencias', // Asumo este es el panel de gestión de incidencias
+=======
+            icon: Icon(Icons.access_time_outlined), label: 'Alertas',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.report_outlined), label: 'Reportes',
+>>>>>>> f3ec33b33cc7842680fc8c2c6c9db9ae25e5575e
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.people_outlined), label: 'Alertas', // Asumo este es el panel de alertas
           ),
+<<<<<<< HEAD
           BottomNavigationBarItem(
             icon: Icon(Icons.campaign), label: 'Avisos', // Ícono corregido para tu módulo
           ),
+=======
+>>>>>>> f3ec33b33cc7842680fc8c2c6c9db9ae25e5575e
         ],
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
@@ -74,22 +117,57 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
-            DrawerHeader(
-              decoration: BoxDecoration(
-                color: Colors.indigo.shade300,
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircleAvatar(
-                    radius: 35,
-                    backgroundColor: Colors.white,
-                    child: Icon(
-                      Icons.person,
-                      size: 50,
-                      color: Colors.indigo.shade300,
-                    ),
+            // FutureBuilder adaptado para el modelo Guardia
+            FutureBuilder<Guardia?>(
+              // Llama a la nueva función
+              future: obtenerDatosDeGuardia(widget.uid),
+              builder: (context, snapshot) {
+                // Casos de "cargando" y "error" siguen igual...
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return DrawerHeader(
+                    decoration: BoxDecoration(color: Colors.indigo.shade300),
+                    child: const Center(child: CircularProgressIndicator(color: Colors.white)),
+                  );
+                }
+                if (snapshot.hasError || !snapshot.hasData) {
+                  return DrawerHeader(
+                    decoration: BoxDecoration(color: Colors.indigo.shade300),
+                    child: const Center(child: Text('Error al cargar perfil', style: TextStyle(color: Colors.white))),
+                  );
+                }
+
+                // --- ¡Tenemos el objeto Guardia! ---
+                var guardia = snapshot.data!; // Ahora esto es un objeto Guardia
+
+                return DrawerHeader(
+                  decoration: BoxDecoration(color: Colors.indigo.shade300),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const CircleAvatar(
+                        radius: 35,
+                        backgroundColor: Colors.white,
+                        child: Icon(Icons.person, size: 50, color: Colors.indigo),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        guardia.name, // <-- Usamos el objeto directamente: guardia.name
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Text(
+                        guardia.email, // <-- Usamos el objeto directamente: guardia.email
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
                   ),
+<<<<<<< HEAD
                   const SizedBox(height: 10),
                   const Text(
                     "Nombre del Usuario",
@@ -108,7 +186,26 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
                   ),
                 ],
               ),
+=======
+                );
+              },
+>>>>>>> f3ec33b33cc7842680fc8c2c6c9db9ae25e5575e
             ),
+            // ============ INICIO DEL NUEVO CÓDIGO A PEGAR ============
+            ListTile(
+              leading: const Icon(Icons.person_add),
+              title: const Text('Validar Usuarios'),
+              onTap: () {
+                // Cierra el drawer primero
+                Navigator.pop(context);
+                // Navega a la nueva pantalla de validación
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const PantallaValidar()),
+                );
+              },
+            ),
+            const Divider(),
             ListTile(
               leading: const Icon(Icons.logout),
               title: const Text('Cerrar Sesión'),
