@@ -1,67 +1,205 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+// --- TUS IMPORTACIONES DE FUNCIONALIDAD ---
 import 'package:dam_pfinal/controlador/basededatos.dart';
 import 'package:dam_pfinal/modelo/incidencias.dart';
-import 'package:dam_pfinal/mapa_screen_guardia.dart';
-import 'package:dam_pfinal/incidencia_detalle_screen.dart';
+import 'package:dam_pfinal/mapa_screen_guardia.dart'; // Tu mapa
+import 'package:dam_pfinal/incidencia_detalle_screen.dart'; // Tu pantalla de gestión
 
+// --- IMPORTACIONES DE LA VERSIÓN REMOTA ---
+import 'package:dam_pfinal/modelo/aviso.dart'; // Módulo de Avisos
+import 'package:dam_pfinal/main.dart'; // Para cerrar sesión
+import 'package:dam_pfinal/authentication/authentication.dart';
+import 'package:dam_pfinal/modelo/guardia.dart'; // Modelo para el Drawer
+import 'package:dam_pfinal/VentanaValidacion.dart'; // Pantalla de validación
 
 class VentanaGuardia extends StatefulWidget {
-  const VentanaGuardia({super.key});
+  final String uid;
+
+  const VentanaGuardia({super.key, required this.uid});
 
   @override
   State<VentanaGuardia> createState() => _VentanaGuardiaState();
 }
 
 class _VentanaGuardiaState extends State<VentanaGuardia> {
-
+  int _selectedIndex = 0;
+  // Tu Future para la lista de incidencias
   late Future<List<Incidencia>> _incidenciasFuture;
+
+  // Controladores para el módulo de Avisos (Remoto)
+  final tituloController = TextEditingController();
+  final contenidoController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    // Inicializa tu Future de Incidencias
     _incidenciasFuture = DB.mostrarIncidenciasPendientes();
+  }
+
+  // --- LÓGICA DE LA VERSIÓN REMOTA ---
+
+  // Función para obtener los datos del Guardia (Drawer)
+  Future<Guardia?> obtenerDatosDeGuardia(String uid) async {
+    try {
+      DocumentSnapshot doc = await FirebaseFirestore.instance.collection('guardia').doc(uid).get();
+      if (doc.exists) {
+        // Asume que el modelo Guardia tiene un factory constructor fromFirestore
+        return Guardia.fromFirestore(doc.data() as Map<String, dynamic>, doc.id);
+      }
+    } catch (e) {
+      print("Error al obtener datos del guardia: $e");
+    }
+    return null;
+  }
+
+  // Se define la lista de opciones de widgets, combinando local y remoto
+  // 🚨 COMBINACIÓN CLAVE EN _widgetOptions 🚨
+  late final List<Widget> _widgetOptions = <Widget>[
+    const GuardiaMapaScreen(),    // 0. MAPA (Tu Widget G-2)
+    _listaIncidencias(),          // 1. INCIDENCIAS (Tu Widget G-3)
+    n2(),                         // 2. Alertas/Reportes (Remoto Placeholder)
+    _pantallaGestionAvisos(),     // 3. Avisos (Módulo Remoto G-6, G-7)
+  ];
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 4,
-      child: Scaffold(
-        appBar: AppBar(
-          automaticallyImplyLeading: true,
-          title: const Text(
-            "MI FRACCIONAMIENTO",
-            style: TextStyle(color: Colors.white),
-          ),
-          centerTitle: true,
-          backgroundColor: Colors.indigo.shade300,
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: "Mapa", icon: Icon(Icons.map)),
-              Tab(text: "Incidencias", icon: Icon(Icons.access_time_outlined)),
-              Tab(text: "N2", icon: Icon(Icons.edit_note_outlined)),
-              Tab(text: "N3", icon: Icon(Icons.apple)),
-            ],
-            labelStyle: TextStyle(color: Colors.red, fontSize: 16),
-            unselectedLabelStyle: TextStyle(color: Colors.white, fontSize: 12),
-            indicatorWeight: 5,
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.indigo.shade300,
+        title: const Text(
+          "Guardia",
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+        elevation: 0,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            bottomRight: Radius.circular(100),
           ),
         ),
-        body: TabBarView(
+      ),
+
+      body: Center(
+        child: _widgetOptions.elementAt(_selectedIndex),
+      ),
+
+      // BottomNavigationBar unificado (4 ítems)
+      bottomNavigationBar: BottomNavigationBar(
+        items: const <BottomNavigationBarItem>[
+          BottomNavigationBarItem(
+            icon: Icon(Icons.map), label: 'Mapa',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.access_time_outlined), label: 'Incidencias',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.report_outlined), label: 'Alertas',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.campaign), label: 'Avisos',
+          ),
+        ],
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+        backgroundColor: Colors.indigo.shade300,
+        selectedItemColor: Colors.black,
+        unselectedItemColor: Colors.white70, unselectedFontSize: 12,
+        type: BottomNavigationBarType.fixed,
+      ),
+
+      // Drawer unificado (Perfil del Guardia y Navegación)
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
           children: [
-            const GuardiaMapaScreen(),
-            listaIncidencias(),
-            n2(),
-            n3(),
+            FutureBuilder<Guardia?>(
+              future: obtenerDatosDeGuardia(widget.uid),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return DrawerHeader(
+                    decoration: BoxDecoration(color: Colors.indigo.shade300),
+                    child: const Center(child: CircularProgressIndicator(color: Colors.white)),
+                  );
+                }
+                if (snapshot.hasError || !snapshot.hasData) {
+                  return DrawerHeader(
+                    decoration: BoxDecoration(color: Colors.indigo.shade300),
+                    child: const Center(child: Text('Error al cargar perfil', style: TextStyle(color: Colors.white))),
+                  );
+                }
+
+                var guardia = snapshot.data!;
+
+                return DrawerHeader(
+                  decoration: BoxDecoration(color: Colors.indigo.shade300),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const CircleAvatar(
+                        radius: 35,
+                        backgroundColor: Colors.white,
+                        child: Icon(Icons.person, size: 50, color: Colors.indigo),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        guardia.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Text(
+                        guardia.email,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+
+            ListTile(
+              leading: const Icon(Icons.person_add),
+              title: const Text('Validar Usuarios'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const PantallaValidar()),
+                );
+              },
+            ),
+            const Divider(),
+
+            ListTile(
+              leading: const Icon(Icons.logout),
+              title: const Text('Cerrar Sesión'),
+              onTap: () {
+                _mostrarDialogoDeCierreSesion(context);
+              },
+            ),
           ],
-        ),
-        drawer: const Drawer(
         ),
       ),
     );
   }
 
-  Widget listaIncidencias(){
+  // --- TUS WIDGETS DE INCIDENCIAS (G-3) ---
+  Widget _listaIncidencias(){
     return FutureBuilder(
       future: _incidenciasFuture,
       builder: (context, AsyncSnapshot<List<Incidencia>> snapshot) {
@@ -93,7 +231,6 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
                   backgroundColor: color,
                   child: const Icon(Icons.warning, color: Colors.white),
                 ),
-                // 🚀 CORRECCIÓN CLAVE: Usar nombreResidente en lugar de idResidente
                 title: Text('Alerta de Residente: ${incidencia.nombreResidente}',
                     style: const TextStyle(fontWeight: FontWeight.bold)),
 
@@ -111,7 +248,7 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
                       builder: (context) => IncidenciaDetalleScreen(incidencia: incidencia),
                     ),
                   );
-
+                  // Recargar la lista después de la gestión
                   if (result == true) {
                     setState(() {
                       _incidenciasFuture = DB.mostrarIncidenciasPendientes();
@@ -126,11 +263,225 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
     );
   }
 
-  Widget n2(){
-    return const Center(child: Text("hol3"),);
+  // --- LÓGICA DE GESTIÓN DE AVISOS (Remoto) ---
+
+  // G-6: Función para crear un nuevo aviso
+  Future<void> _enviarAviso() async {
+    final User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      print("Error: Usuario no autenticado");
+      return;
+    }
+
+    final nuevoAviso = Aviso(
+      titulo: tituloController.text.trim(),
+      contenido: contenidoController.text.trim(),
+      creadoPor: user.email!,
+      fecha: DateTime.now(),
+    );
+
+    String resultado = await DB.crearAviso(nuevoAviso);
+
+    if (resultado == "ok") {
+      tituloController.clear();
+      contenidoController.clear();
+      setState(() {});
+      print("Aviso creado exitosamente.");
+    } else {
+      print("Error al crear el aviso: $resultado");
+    }
   }
 
-  Widget n3(){
-    return const Center(child: Text("hola4"),);
+  // G-7: Lógica para eliminar el aviso
+  Future<void> _eliminarAviso(Aviso aviso) async {
+    String resultado = await DB.eliminarAviso(aviso.id);
+    if (resultado == "ok") {
+      setState(() {});
+      print("Aviso ${aviso.titulo} eliminado.");
+    } else {
+      print("Error al eliminar aviso: $resultado");
+    }
   }
+
+  // G-7: Lógica para mostrar y manejar el diálogo de edición
+  Future<void> _mostrarDialogoEdicion(BuildContext context, Aviso aviso) async {
+    final editTituloController = TextEditingController(text: aviso.titulo);
+    final editContenidoController = TextEditingController(text: aviso.contenido);
+
+    await showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Editar Aviso'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                TextField(
+                  controller: editTituloController,
+                  decoration: const InputDecoration(labelText: "Título"),
+                ),
+                TextField(
+                  controller: editContenidoController,
+                  decoration: const InputDecoration(labelText: "Contenido"),
+                  maxLines: 4,
+                  minLines: 2,
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancelar'),
+              onPressed: () => Navigator.of(dialogContext).pop(),
+            ),
+            TextButton(
+              child: const Text('Guardar'),
+              onPressed: () async {
+                Navigator.of(dialogContext).pop();
+                final avisoModificado = Aviso(
+                  id: aviso.id,
+                  titulo: editTituloController.text.trim(),
+                  contenido: editContenidoController.text.trim(),
+                  creadoPor: aviso.creadoPor,
+                  fecha: aviso.fecha,
+                );
+
+                String resultado = await DB.actualizarAviso(avisoModificado);
+                if (resultado == "ok") {
+                  setState(() {});
+                  print("Aviso ${aviso.titulo} actualizado.");
+                } else {
+                  print("Error al actualizar: $resultado");
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // G-7: Diseño de la tarjeta de gestión
+  Widget _avisoCardGestion(Aviso aviso) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10.0),
+      elevation: 2.0,
+      child: ListTile(
+        title: Text(aviso.titulo, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(
+          aviso.contenido,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.edit, color: Colors.blue),
+              onPressed: () => _mostrarDialogoEdicion(context, aviso),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete, color: Colors.red),
+              onPressed: () => _eliminarAviso(aviso),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // G-6, G-7: Pantalla de Gestión de Avisos
+  Widget _pantallaGestionAvisos() {
+    return FutureBuilder<List<Aviso>>(
+      future: DB.mostrarAvisos(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final avisos = snapshot.data ?? [];
+
+        return Column(
+          children: [
+            // Formulario de Creación
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text("Crear Nuevo Aviso", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+                  const SizedBox(height: 15),
+                  TextField(controller: tituloController, decoration: const InputDecoration(labelText: "Título")),
+                  const SizedBox(height: 10),
+                  TextField(controller: contenidoController, decoration: const InputDecoration(labelText: "Contenido"), maxLines: 3),
+                  const SizedBox(height: 20),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      if (tituloController.text.isNotEmpty && contenidoController.text.isNotEmpty) {
+                        _enviarAviso();
+                      }
+                    },
+                    icon: const Icon(Icons.send),
+                    label: const Text("PUBLICAR AVISO"),
+                  ),
+                  const Divider(height: 30),
+                ],
+              ),
+            ),
+
+            // Lista de Gestión (Lectura, Edición, Eliminación)
+            Expanded(
+              child: avisos.isEmpty
+                  ? const Center(child: Text('No hay avisos publicados para gestionar.'))
+                  : ListView.builder(
+                itemCount: avisos.length,
+                itemBuilder: (context, index) {
+                  return _avisoCardGestion(avisos[index]);
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Función de cierre de sesión (Unificada)
+  void _mostrarDialogoDeCierreSesion(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Cerrar Sesión'),
+          content: const Text('¿Estás seguro de que deseas cerrar sesión?'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () async {
+                await Auth().cerrarSesion();
+                if (!dialogContext.mounted) return;
+                Navigator.of(dialogContext).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const MyApp()),
+                      (Route<dynamic> route) => false,
+                );
+              },
+              child: const Text('Aceptar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// Estos widgets son los placeholders que se mantuvieron de la versión remota
+// El índice 2 ("Alertas") se mantuvo como n2()
+Widget n2() {
+  return const Center(child: Text("Contenido de ALERTAS/REPORTES"));
 }

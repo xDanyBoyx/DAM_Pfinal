@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dam_pfinal/modelo/guardia.dart';
 import 'package:dam_pfinal/modelo/residente.dart';
 import 'package:dam_pfinal/modelo/incidencias.dart';
+import 'package:dam_pfinal/modelo/aviso.dart'; // Mantener el nuevo modelo del Remoto
 
 // Inicialización global de la instancia de Firestore
 var baseRemota = FirebaseFirestore.instance;
@@ -9,7 +10,6 @@ var baseRemota = FirebaseFirestore.instance;
 class DB {
 
   // --- Funciones de Lectura (Read) ---
-  // ... (mostrarGuardia() y mostrarResidente() se mantienen sin cambios) ...
 
   // 1. Mostrar lista de Guardias
   static Future<List<Guardia>> mostrarGuardia() async {
@@ -74,12 +74,14 @@ class DB {
     }
   }
 
-  // 4. R: Mostrar Incidencias Pendientes (G-2) - AHORA CON BUSQUEDA DE NOMBRE
+  // 4. R: Mostrar Incidencias Pendientes (G-2) - CON BUSQUEDA DE NOMBRE (Versión Local)
   static Future<List<Incidencia>> mostrarIncidenciasPendientes() async {
     // 1. Consulta Inicial de Incidencias
     var query = await baseRemota.collection("incidencias")
         .where('estado', isNotEqualTo: 'Resuelta')
-        .where('zona_valida', isEqualTo: true)
+    // 🚨 CORRECCIÓN CLAVE: Se comenta la línea de validación de zona
+    //     para que las incidencias se muestren aunque G-4 no esté implementado.
+    // .where('zona_valida', isEqualTo: true)
         .orderBy('timestamp', descending: true)
         .get();
 
@@ -105,8 +107,6 @@ class DB {
       // 3. Crear el objeto Incidencia con el nombre adjunto
       var incidencia = Incidencia.fromFirestore(doc);
 
-      // Creamos una nueva instancia de Incidencia con el campo nombreResidente
-      // NOTA: Reemplazar el factory Incidencia.fromFirestore con este enfoque es más seguro:
       return Incidencia(
         id: incidencia.id,
         idResidente: incidencia.idResidente,
@@ -137,4 +137,72 @@ class DB {
       print("Error al actualizar estado: $e");
     }
   }
+
+  // G-1: Backend para reportar una incidencia (Versión Remota)
+  static Future<String> reportarIncidencia(Incidencia incidencia) async {
+    try {
+      await baseRemota.collection("incidencias").add(incidencia.toMap());
+      return "ok";
+    } catch (e) {
+      print("Error al reportar la incidencia: $e");
+      return "Error: $e";
+    }
+  }
+
+  // G-6: Función para crear un nuevo aviso general (Versión Remota)
+  static Future<String> crearAviso(Aviso aviso) async {
+    try {
+      // --- R-5: Implementación de la Lógica de Notificación ---
+      print("LOG: [R-5] Se simula el envío de una notificación Push a todos los Residentes.");
+
+      await baseRemota.collection("avisos").add(aviso.toMap());
+      return "ok";
+    } catch (e) {
+      print("Error al crear aviso: $e");
+      return "Error: $e";
+    }
+  }
+
+  // R-4: Función para obtener y mostrar la lista de avisos (Lectura) (Versión Remota)
+  static Future<List<Aviso>> mostrarAvisos() async {
+    List<Aviso> listaAvisos = [];
+
+    var query = await baseRemota
+        .collection("avisos")
+        .orderBy("fecha", descending: true)
+        .get();
+
+    for (var doc in query.docs) {
+      listaAvisos.add(Aviso.fromMap(doc.id, doc.data()));
+    }
+
+    return listaAvisos;
+  }
+
+  // G-7: Función para actualizar un aviso existente (Versión Remota)
+  static Future<String> actualizarAviso(Aviso aviso) async {
+    try {
+      await baseRemota
+          .collection("avisos")
+          .doc(aviso.id)
+          .update(aviso.toMap());
+      return "ok";
+    } catch (e) {
+      return "Error al actualizar aviso: $e";
+    }
+  }
+
+  // G-7: Función para eliminar un aviso (Versión Remota)
+  static Future<String> eliminarAviso(String avisoId) async {
+    try {
+      await baseRemota
+          .collection("avisos")
+          .doc(avisoId)
+          .delete();
+      return "ok";
+    } catch (e) {
+      return "Error al eliminar aviso: $e";
+    }
+  }
+
 }
