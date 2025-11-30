@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:dam_pfinal/main.dart';
 import 'package:dam_pfinal/authentication/authentication.dart';
+import 'package:dam_pfinal/controlador/basededatos.dart';
+import 'package:dam_pfinal/modelo/aviso.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class VentanaGuardia extends StatefulWidget {
   const VentanaGuardia({super.key});
@@ -11,13 +14,16 @@ class VentanaGuardia extends StatefulWidget {
 
 class _VentanaGuardiaState extends State<VentanaGuardia> {
   int _selectedIndex = 0;
+  // Controladores ahora son parte de la clase State
+  final tituloController = TextEditingController();
+  final contenidoController = TextEditingController();
 
-
-  static final List<Widget> _widgetOptions = <Widget>[
-    dataUsuarios(),
-    n1(),
-    n2(),
-    n3(),
+  // Se define la lista de opciones de widgets (ahora métodos de la clase)
+  late final List<Widget> _widgetOptions = <Widget>[
+    dataUsuarios(), // 0. USUARIOS (Map)
+    n1(),           // 1. N1 (Incidencias/Users)
+    n2(),           // 2. N2 (Alertas/Incidencias)
+    _pantallaGestionAvisos(), // 3. Avisos (Tu Módulo G-6, G-7)
   ];
 
   void _onItemTapped(int index) {
@@ -48,13 +54,13 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
             icon: Icon(Icons.map), label: 'Map',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.access_time_outlined), label: 'Reportes',
+            icon: Icon(Icons.access_time_outlined), label: 'Incidencias', // Asumo este es el panel de gestión de incidencias
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.people_outlined), label: 'Guardias',
+            icon: Icon(Icons.people_outlined), label: 'Alertas', // Asumo este es el panel de alertas
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.apple), label: 'N3',
+            icon: Icon(Icons.campaign), label: 'Avisos', // Ícono corregido para tu módulo
           ),
         ],
         currentIndex: _selectedIndex,
@@ -85,7 +91,7 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  Text(
+                  const Text(
                     "Nombre del Usuario",
                     style: TextStyle(
                       color: Colors.white,
@@ -93,7 +99,7 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
                       fontSize: 16,
                     ),
                   ),
-                  Text(
+                  const Text(
                     "usuario@email.com",
                     style: TextStyle(
                       color: Colors.white70,
@@ -104,7 +110,7 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
               ),
             ),
             ListTile(
-              leading: Icon(Icons.logout),
+              leading: const Icon(Icons.logout),
               title: const Text('Cerrar Sesión'),
               onTap: () {
                 _mostrarDialogoDeCierreSesion(context);
@@ -113,6 +119,191 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
           ],
         ),
       ),
+    );
+  }
+
+  // G-6: Función para crear un nuevo aviso (Ahora método de la clase)
+  Future<void> _enviarAviso() async {
+    final User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      print("Error: Usuario no autenticado");
+      return;
+    }
+
+    final nuevoAviso = Aviso(
+      titulo: tituloController.text.trim(),
+      contenido: contenidoController.text.trim(),
+      creadoPor: user.email!,
+      fecha: DateTime.now(),
+    );
+
+    String resultado = await DB.crearAviso(nuevoAviso);
+
+    if (resultado == "ok") {
+      tituloController.clear();
+      contenidoController.clear();
+      // Llama a setState() dentro de la clase para recargar la lista
+      setState(() {});
+      print("Aviso creado exitosamente.");
+    } else {
+      print("Error al crear el aviso: $resultado");
+    }
+  }
+
+  // G-7: Lógica para eliminar el aviso (Ahora método de la clase)
+  Future<void> _eliminarAviso(Aviso aviso) async {
+    String resultado = await DB.eliminarAviso(aviso.id);
+    if (resultado == "ok") {
+      // Llama a setState() dentro de la clase para recargar la lista
+      setState(() {});
+      print("Aviso ${aviso.titulo} eliminado.");
+    } else {
+      print("Error al eliminar aviso: $resultado");
+    }
+  }
+
+  // G-7: Lógica para mostrar y manejar el diálogo de edición (Ahora método de la clase)
+  Future<void> _mostrarDialogoEdicion(BuildContext context, Aviso aviso) async {
+    final editTituloController = TextEditingController(text: aviso.titulo);
+    final editContenidoController = TextEditingController(text: aviso.contenido);
+
+    await showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Editar Aviso'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                TextField(
+                  controller: editTituloController,
+                  decoration: const InputDecoration(labelText: "Título"),
+                ),
+                TextField(
+                  controller: editContenidoController,
+                  decoration: const InputDecoration(labelText: "Contenido"),
+                  maxLines: 4,
+                  minLines: 2,
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancelar'),
+              onPressed: () => Navigator.of(dialogContext).pop(),
+            ),
+            TextButton(
+              child: const Text('Guardar'),
+              onPressed: () async {
+                Navigator.of(dialogContext).pop();
+                final avisoModificado = Aviso(
+                  id: aviso.id,
+                  titulo: editTituloController.text.trim(),
+                  contenido: editContenidoController.text.trim(),
+                  creadoPor: aviso.creadoPor,
+                  fecha: aviso.fecha,
+                );
+
+                String resultado = await DB.actualizarAviso(avisoModificado);
+                if (resultado == "ok") {
+                  // Llama a setState() dentro de la clase para recargar la lista
+                  setState(() {});
+                  print("Aviso ${aviso.titulo} actualizado.");
+                } else {
+                  print("Error al actualizar: $resultado");
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // G-7: Diseño de la tarjeta de gestión
+  Widget _avisoCardGestion(Aviso aviso) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10.0),
+      elevation: 2.0,
+      child: ListTile(
+        title: Text(aviso.titulo, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(
+          aviso.contenido,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.edit, color: Colors.blue),
+              onPressed: () => _mostrarDialogoEdicion(context, aviso),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete, color: Colors.red),
+              onPressed: () => _eliminarAviso(aviso),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // G-6, G-7: Pantalla de Gestión de Avisos
+  Widget _pantallaGestionAvisos() {
+    return FutureBuilder<List<Aviso>>(
+      future: DB.mostrarAvisos(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final avisos = snapshot.data ?? [];
+
+        return Column(
+          children: [
+            // Formulario de Creación
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text("Crear Nuevo Aviso", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+                  const SizedBox(height: 15),
+                  TextField(controller: tituloController, decoration: const InputDecoration(labelText: "Título")),
+                  const SizedBox(height: 10),
+                  TextField(controller: contenidoController, decoration: const InputDecoration(labelText: "Contenido"), maxLines: 3),
+                  const SizedBox(height: 20),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      if (tituloController.text.isNotEmpty && contenidoController.text.isNotEmpty) {
+                        _enviarAviso();
+                      }
+                    },
+                    icon: const Icon(Icons.send),
+                    label: const Text("PUBLICAR AVISO"),
+                  ),
+                  const Divider(height: 30),
+                ],
+              ),
+            ),
+
+            // Lista de Gestión (Lectura, Edición, Eliminación)
+            Expanded(
+              child: avisos.isEmpty
+                  ? const Center(child: Text('No hay avisos publicados para gestionar.'))
+                  : ListView.builder(
+                itemCount: avisos.length,
+                itemBuilder: (context, index) {
+                  return _avisoCardGestion(avisos[index]);
+                },
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -131,17 +322,11 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
               child: const Text('Cancelar'),
             ),
             TextButton(
-              // 1. La función se vuelve asíncrona
               onPressed: () async {
-                // 2. Esperamos a que el Future de cerrarSesion() se complete
                 await Auth().cerrarSesion();
-
-                // 3. (Opcional pero recomendado) Verificamos si el contexto sigue activo
                 if (!dialogContext.mounted) return;
-
-                // 4. Navegamos DESPUÉS de que la sesión se haya cerrado
                 Navigator.of(dialogContext).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (context) => MyApp()),
+                  MaterialPageRoute(builder: (context) => const MyApp()),
                       (Route<dynamic> route) => false,
                 );
               },
@@ -152,22 +337,17 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
       },
     );
   }
-
 }
 
-
+// Estos widgets son los placeholders de tus compañeros, se mantienen fuera de la clase State
 Widget dataUsuarios() {
-  return const Center(child: Text("Contenido de USUARIOS"));
+  return const Center(child: Text("Contenido de USUARIOS (Mapa)"));
 }
 
 Widget n1() {
-  return const Center(child: Text("Contenido de N1"));
+  return const Center(child: Text("Contenido de INCIDENCIAS"));
 }
 
 Widget n2() {
-  return const Center(child: Text("Contenido de N2"));
-}
-
-Widget n3() {
-  return const Center(child: Text("Contenido de N3"));
+  return const Center(child: Text("Contenido de ALERTAS"));
 }
