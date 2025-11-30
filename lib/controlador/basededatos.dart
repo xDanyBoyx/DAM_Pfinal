@@ -9,6 +9,7 @@ var baseRemota = FirebaseFirestore.instance;
 class DB {
 
   // --- Funciones de Lectura (Read) ---
+  // ... (mostrarGuardia() y mostrarResidente() se mantienen sin cambios) ...
 
   // 1. Mostrar lista de Guardias
   static Future<List<Guardia>> mostrarGuardia() async {
@@ -73,23 +74,55 @@ class DB {
     }
   }
 
-  // 4. R: Mostrar Incidencias Pendientes (Usada por la app del Guardia G-2)
+  // 4. R: Mostrar Incidencias Pendientes (G-2) - AHORA CON BUSQUEDA DE NOMBRE
   static Future<List<Incidencia>> mostrarIncidenciasPendientes() async {
-    List<Incidencia> temporal = [];
-
-    // Consulta: Solo trae las incidencias VÁLIDAS que no han sido Resueltas
+    // 1. Consulta Inicial de Incidencias
     var query = await baseRemota.collection("incidencias")
         .where('estado', isNotEqualTo: 'Resuelta')
-        .where('zona_valida', isEqualTo: true) // Muestra solo las que pasaron el geocercado
+        .where('zona_valida', isEqualTo: true)
         .orderBy('timestamp', descending: true)
         .get();
 
-    query.docs.forEach((element) {
-      // Mapea el documento al modelo Incidencia
-      var incidencia = Incidencia.fromFirestore(element);
-      temporal.add(incidencia);
-    });
-    return temporal;
+    if (query.docs.isEmpty) return [];
+
+    // 2. Mapeo Asíncrono para adjuntar el nombre
+    final List<Future<Incidencia>> futureIncidencias = query.docs.map((doc) async {
+      final data = doc.data() as Map<String, dynamic>;
+      final idResidente = data['id_residente'] as String;
+      String nombreResidente = 'Desconocido';
+
+      // 🚨 BÚSQUEDA EN LA COLECCIÓN 'RESIDENTE' 🚨
+      try {
+        final residenteDoc = await baseRemota.collection('residente').doc(idResidente).get();
+        if (residenteDoc.exists) {
+          // Asume que el campo del nombre es 'name'
+          nombreResidente = residenteDoc.get('name') ?? 'ID: $idResidente';
+        }
+      } catch (e) {
+        print("Error al buscar nombre del residente ($idResidente): $e");
+      }
+
+      // 3. Crear el objeto Incidencia con el nombre adjunto
+      var incidencia = Incidencia.fromFirestore(doc);
+
+      // Creamos una nueva instancia de Incidencia con el campo nombreResidente
+      // NOTA: Reemplazar el factory Incidencia.fromFirestore con este enfoque es más seguro:
+      return Incidencia(
+        id: incidencia.id,
+        idResidente: incidencia.idResidente,
+        nombreResidente: nombreResidente, // <-- Adjuntamos el nombre
+        ubicacion: incidencia.ubicacion,
+        timestamp: incidencia.timestamp,
+        estado: incidencia.estado,
+        zonaValida: incidencia.zonaValida,
+        motivoInvalidez: incidencia.motivoInvalidez,
+        detalles: incidencia.detalles,
+        ultimaActualizacion: incidencia.ultimaActualizacion,
+      );
+    }).toList();
+
+    // 4. Esperar a que TODAS las búsquedas de nombres terminen
+    return Future.wait(futureIncidencias);
   }
 
   // 5. U: Actualizar Estado (Usada por la app del Guardia G-3)

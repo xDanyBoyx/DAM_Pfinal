@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:dam_pfinal/controlador//basededatos.dart'; // Tu clase DB
-import 'package:dam_pfinal/modelo/incidencias.dart'; // Modelo Incidencia (asumiendo que es incidencias.dart)
-import 'package:dam_pfinal/mapa_screen_guardia.dart'; // Pantalla del Mapa (G-2)
+import 'package:dam_pfinal/controlador/basededatos.dart';
+import 'package:dam_pfinal/modelo/incidencias.dart';
+import 'package:dam_pfinal/mapa_screen_guardia.dart';
+import 'package:dam_pfinal/incidencia_detalle_screen.dart';
 
 
 class VentanaGuardia extends StatefulWidget {
@@ -12,6 +13,15 @@ class VentanaGuardia extends StatefulWidget {
 }
 
 class _VentanaGuardiaState extends State<VentanaGuardia> {
+
+  late Future<List<Incidencia>> _incidenciasFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _incidenciasFuture = DB.mostrarIncidenciasPendientes();
+  }
+
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
@@ -27,8 +37,8 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
           backgroundColor: Colors.indigo.shade300,
           bottom: const TabBar(
             tabs: [
-              Tab(text: "Mapa", icon: Icon(Icons.map)), // Pestaña Mapa
-              Tab(text: "Incidencias", icon: Icon(Icons.access_time_outlined)), // Pestaña Lista
+              Tab(text: "Mapa", icon: Icon(Icons.map)),
+              Tab(text: "Incidencias", icon: Icon(Icons.access_time_outlined)),
               Tab(text: "N2", icon: Icon(Icons.edit_note_outlined)),
               Tab(text: "N3", icon: Icon(Icons.apple)),
             ],
@@ -39,29 +49,21 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
         ),
         body: TabBarView(
           children: [
-            const GuardiaMapaScreen(), // G-2: Pantalla del Mapa
-            listaIncidencias(),                     //  Lista de Incidencias Pendientes
+            const GuardiaMapaScreen(),
+            listaIncidencias(),
             n2(),
             n3(),
           ],
         ),
         drawer: const Drawer(
-          // ... contenido del Drawer si es necesario
         ),
       ),
     );
   }
 
-  // Se elimina la función dataUsuarios() ya que ahora usamos GuardiaMapaScreen
-  /* Widget dataUsuarios(){ return Center(child: Text("hola"),); } */
-
-  // ----------------------------------------------------
-  // N1: Lista de Incidencias Pendientes (G-2 Fuente de datos)
-  // ----------------------------------------------------
   Widget listaIncidencias(){
     return FutureBuilder(
-      // Manteniendo la llamada directa al Future, tal como estaba en tu código original
-      future: DB.mostrarIncidenciasPendientes(),
+      future: _incidenciasFuture,
       builder: (context, AsyncSnapshot<List<Incidencia>> snapshot) {
 
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -91,22 +93,30 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
                   backgroundColor: color,
                   child: const Icon(Icons.warning, color: Colors.white),
                 ),
-                title: Text('Alerta de Residente: ${incidencia.idResidente}',
+                // 🚀 CORRECCIÓN CLAVE: Usar nombreResidente en lugar de idResidente
+                title: Text('Alerta de Residente: ${incidencia.nombreResidente}',
                     style: const TextStyle(fontWeight: FontWeight.bold)),
 
-                // 🚨 CAMBIO SOLICITADO: Se agrega la línea de detalles 🚨
                 subtitle: Text(
-                    'Detalles: ${incidencia.detalles ?? 'No proporcionados'}\n' // Línea de detalles
+                    'Detalles: ${incidencia.detalles ?? 'No proporcionados'}\n'
                         'Estado: ${incidencia.estado}\n'
                         'Hora: ${incidencia.timestamp.toDate().toLocal().toString().substring(11, 19)}'
                 ),
 
                 trailing: const Icon(Icons.arrow_forward_ios),
-                onTap: () {
-                  // Mantenemos la lógica original de onTap (solo el SnackBar)
-                  ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Incidencia ID: ${incidencia.id}. Tarea pendiente: cambiar estado (G-3)'))
+                onTap: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => IncidenciaDetalleScreen(incidencia: incidencia),
+                    ),
                   );
+
+                  if (result == true) {
+                    setState(() {
+                      _incidenciasFuture = DB.mostrarIncidenciasPendientes();
+                    });
+                  }
                 },
               ),
             );

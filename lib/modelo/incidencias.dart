@@ -6,6 +6,8 @@ class Incidencia {
 
   // Datos de la alerta
   final String idResidente;
+  // 🚨 NUEVO CAMPO: Nombre del residente para mostrar en la interfaz
+  final String? nombreResidente;
   final GeoPoint ubicacion; // Crucial para el mapa (G-2) y geocercado (G-4)
   final Timestamp timestamp;
 
@@ -21,6 +23,7 @@ class Incidencia {
   Incidencia({
     required this.id,
     required this.idResidente,
+    this.nombreResidente, // 🚨 Agregado al constructor 🚨
     required this.ubicacion,
     required this.timestamp,
     this.estado = 'Pendiente',
@@ -37,13 +40,15 @@ class Incidencia {
     return Incidencia(
       id: doc.id,
       idResidente: data['id_residente'] ?? '',
+      // NOTA: Este campo se llenará con la búsqueda en el controlador DB,
+      // no directamente desde el documento de incidencia original.
+      nombreResidente: null,
       ubicacion: data['ubicacion'] as GeoPoint,
       timestamp: data['timestamp'] as Timestamp,
       estado: data['estado'] ?? 'Pendiente',
       zonaValida: data['zona_valida'] ?? false,
-      motivoInvalidez: data['motivo_invalidez'] as String?, // Casteo a String?
-      detalles: data['detalles'] as String?, // Casteo a String?
-      // 🚨 CORRECCIÓN CLAVE AQUÍ: Casteo a Timestamp? para manejar el null
+      motivoInvalidez: data['motivo_invalidez'] as String?,
+      detalles: data['detalles'] as String?,
       ultimaActualizacion: data['ultima_actualizacion'] as Timestamp?,
     );
   }
@@ -52,6 +57,7 @@ class Incidencia {
   Map<String, dynamic> toMap() {
     return {
       'id_residente': idResidente,
+      // No incluimos nombreResidente, ya que no se guarda en la DB de incidencias.
       'ubicacion': ubicacion,
       'timestamp': timestamp,
       'estado': estado,
