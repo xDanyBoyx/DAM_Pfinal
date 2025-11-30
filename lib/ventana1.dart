@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:dam_pfinal/main.dart';
-import 'package:dam_pfinal/authentication/authentication.dart';
-<<<<<<< HEAD
+// Importaciones necesarias de tu trabajo (Avisos)
 import 'package:dam_pfinal/controlador/basededatos.dart';
 import 'package:dam_pfinal/modelo/aviso.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-=======
+// Importaciones necesarias del trabajo de tus compañeros (Perfil y Login)
+import 'package:dam_pfinal/main.dart';
+import 'package:dam_pfinal/authentication/authentication.dart';
 import 'package:dam_pfinal/modelo/guardia.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dam_pfinal/VentanaValidacion.dart';
 
->>>>>>> f3ec33b33cc7842680fc8c2c6c9db9ae25e5575e
 
 class VentanaGuardia extends StatefulWidget {
+  // Se añade el UID, necesario para cargar los datos del Drawer
   final String uid;
 
   const VentanaGuardia({super.key, required this.uid});
@@ -23,23 +23,16 @@ class VentanaGuardia extends StatefulWidget {
 
 class _VentanaGuardiaState extends State<VentanaGuardia> {
   int _selectedIndex = 0;
-  // Controladores ahora son parte de la clase State
+  // Controladores para el módulo de Avisos (Tu trabajo)
   final tituloController = TextEditingController();
   final contenidoController = TextEditingController();
 
-<<<<<<< HEAD
-  // Se define la lista de opciones de widgets (ahora métodos de la clase)
-  late final List<Widget> _widgetOptions = <Widget>[
-    dataUsuarios(), // 0. USUARIOS (Map)
-    n1(),           // 1. N1 (Incidencias/Users)
-    n2(),           // 2. N2 (Alertas/Incidencias)
-    _pantallaGestionAvisos(), // 3. Avisos (Tu Módulo G-6, G-7)
-=======
-
+  // Función para obtener los datos del Guardia (Trabajo de compañeros)
   Future<Guardia?> obtenerDatosDeGuardia(String uid) async {
     try {
       DocumentSnapshot doc = await FirebaseFirestore.instance.collection('guardia').doc(uid).get();
       if (doc.exists) {
+        // Asumiendo que el modelo Guardia tiene un factory constructor fromFirestore
         return Guardia.fromFirestore(doc.data() as Map<String, dynamic>, doc.id);
       }
     } catch (e) {
@@ -48,13 +41,12 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
     return null;
   }
 
-
-  static final List<Widget> _widgetOptions = <Widget>[
-    dataUsuarios(),
-    n1(),
-    n2(),
-    n3(),
->>>>>>> f3ec33b33cc7842680fc8c2c6c9db9ae25e5575e
+  // Se define la lista de opciones de widgets, incluyendo tu módulo de Avisos
+  late final List<Widget> _widgetOptions = <Widget>[
+    dataUsuarios(),           // 0. Mapa/Usuarios
+    n1(),                     // 1. Incidencias
+    n2(),                     // 2. Alertas/Reportes
+    _pantallaGestionAvisos(), // 3. Avisos (Tu Módulo G-6, G-7)
   ];
 
   void _onItemTapped(int index) {
@@ -81,30 +73,25 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
         ),
       ),
 
+      body: Center(
+        child: _widgetOptions.elementAt(_selectedIndex),
+      ),
+
+      // BottomNavigationBar unificado (4 ítems, incluyendo Avisos)
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
-            icon: Icon(Icons.map), label: 'Mapa',
+            icon: Icon(Icons.map), label: 'Mapa', // Manteniendo el label general
           ),
           BottomNavigationBarItem(
-<<<<<<< HEAD
-            icon: Icon(Icons.access_time_outlined), label: 'Incidencias', // Asumo este es el panel de gestión de incidencias
-=======
-            icon: Icon(Icons.access_time_outlined), label: 'Alertas',
+            icon: Icon(Icons.access_time_outlined), label: 'Incidencias', // Módulo 1
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.report_outlined), label: 'Reportes',
->>>>>>> f3ec33b33cc7842680fc8c2c6c9db9ae25e5575e
+            icon: Icon(Icons.report_outlined), label: 'Alertas', // Módulo 2
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.people_outlined), label: 'Alertas', // Asumo este es el panel de alertas
+            icon: Icon(Icons.campaign), label: 'Avisos', // Tu Módulo
           ),
-<<<<<<< HEAD
-          BottomNavigationBarItem(
-            icon: Icon(Icons.campaign), label: 'Avisos', // Ícono corregido para tu módulo
-          ),
-=======
->>>>>>> f3ec33b33cc7842680fc8c2c6c9db9ae25e5575e
         ],
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
@@ -113,16 +100,16 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
         unselectedItemColor: Colors.white70, unselectedFontSize: 12,
         type: BottomNavigationBarType.fixed,
       ),
+
+      // Drawer unificado (Perfil del Guardia y Navegación)
       drawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
-            // FutureBuilder adaptado para el modelo Guardia
+            // FutureBuilder para cargar los datos del Guardia
             FutureBuilder<Guardia?>(
-              // Llama a la nueva función
               future: obtenerDatosDeGuardia(widget.uid),
               builder: (context, snapshot) {
-                // Casos de "cargando" y "error" siguen igual...
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return DrawerHeader(
                     decoration: BoxDecoration(color: Colors.indigo.shade300),
@@ -136,8 +123,7 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
                   );
                 }
 
-                // --- ¡Tenemos el objeto Guardia! ---
-                var guardia = snapshot.data!; // Ahora esto es un objeto Guardia
+                var guardia = snapshot.data!;
 
                 return DrawerHeader(
                   decoration: BoxDecoration(color: Colors.indigo.shade300),
@@ -151,7 +137,7 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        guardia.name, // <-- Usamos el objeto directamente: guardia.name
+                        guardia.name,
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
@@ -159,7 +145,7 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
                         ),
                       ),
                       Text(
-                        guardia.email, // <-- Usamos el objeto directamente: guardia.email
+                        guardia.email,
                         style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 14,
@@ -167,38 +153,16 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
                       ),
                     ],
                   ),
-<<<<<<< HEAD
-                  const SizedBox(height: 10),
-                  const Text(
-                    "Nombre del Usuario",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const Text(
-                    "usuario@email.com",
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-=======
                 );
               },
->>>>>>> f3ec33b33cc7842680fc8c2c6c9db9ae25e5575e
             ),
-            // ============ INICIO DEL NUEVO CÓDIGO A PEGAR ============
+
+            // Opción de Validar Usuarios (Trabajo de compañeros)
             ListTile(
               leading: const Icon(Icons.person_add),
               title: const Text('Validar Usuarios'),
               onTap: () {
-                // Cierra el drawer primero
                 Navigator.pop(context);
-                // Navega a la nueva pantalla de validación
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const PantallaValidar()),
@@ -206,6 +170,8 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
               },
             ),
             const Divider(),
+
+            // Opción de Cerrar Sesión
             ListTile(
               leading: const Icon(Icons.logout),
               title: const Text('Cerrar Sesión'),
@@ -219,7 +185,7 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
     );
   }
 
-  // G-6: Función para crear un nuevo aviso (Ahora método de la clase)
+  // G-6: Función para crear un nuevo aviso (Tu trabajo)
   Future<void> _enviarAviso() async {
     final User? user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -239,7 +205,6 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
     if (resultado == "ok") {
       tituloController.clear();
       contenidoController.clear();
-      // Llama a setState() dentro de la clase para recargar la lista
       setState(() {});
       print("Aviso creado exitosamente.");
     } else {
@@ -247,11 +212,10 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
     }
   }
 
-  // G-7: Lógica para eliminar el aviso (Ahora método de la clase)
+  // G-7: Lógica para eliminar el aviso (Tu trabajo)
   Future<void> _eliminarAviso(Aviso aviso) async {
     String resultado = await DB.eliminarAviso(aviso.id);
     if (resultado == "ok") {
-      // Llama a setState() dentro de la clase para recargar la lista
       setState(() {});
       print("Aviso ${aviso.titulo} eliminado.");
     } else {
@@ -259,7 +223,7 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
     }
   }
 
-  // G-7: Lógica para mostrar y manejar el diálogo de edición (Ahora método de la clase)
+  // G-7: Lógica para mostrar y manejar el diálogo de edición (Tu trabajo)
   Future<void> _mostrarDialogoEdicion(BuildContext context, Aviso aviso) async {
     final editTituloController = TextEditingController(text: aviso.titulo);
     final editContenidoController = TextEditingController(text: aviso.contenido);
@@ -305,7 +269,6 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
 
                 String resultado = await DB.actualizarAviso(avisoModificado);
                 if (resultado == "ok") {
-                  // Llama a setState() dentro de la clase para recargar la lista
                   setState(() {});
                   print("Aviso ${aviso.titulo} actualizado.");
                 } else {
@@ -319,7 +282,7 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
     );
   }
 
-  // G-7: Diseño de la tarjeta de gestión
+  // G-7: Diseño de la tarjeta de gestión (Tu trabajo)
   Widget _avisoCardGestion(Aviso aviso) {
     return Card(
       margin: const EdgeInsets.only(bottom: 10.0),
@@ -348,7 +311,7 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
     );
   }
 
-  // G-6, G-7: Pantalla de Gestión de Avisos
+  // G-6, G-7: Pantalla de Gestión de Avisos (Tu trabajo)
   Widget _pantallaGestionAvisos() {
     return FutureBuilder<List<Aviso>>(
       future: DB.mostrarAvisos(),
@@ -404,6 +367,7 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
     );
   }
 
+  // Función de cierre de sesión (Unificada)
   void _mostrarDialogoDeCierreSesion(BuildContext context) {
     showDialog(
       context: context,
@@ -436,7 +400,7 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
   }
 }
 
-// Estos widgets son los placeholders de tus compañeros, se mantienen fuera de la clase State
+// Estos widgets son los placeholders
 Widget dataUsuarios() {
   return const Center(child: Text("Contenido de USUARIOS (Mapa)"));
 }
