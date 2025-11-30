@@ -53,9 +53,10 @@ class _PantallaValidarState extends State<PantallaValidar> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Usuarios Pendientes'),
+        backgroundColor: Colors.indigo.shade300,
+        foregroundColor: Colors.white,
       ),
       body: StreamBuilder<List<QuerySnapshot>>(
-        // Usamos StreamZip para combinar ambos streams
         stream: StreamZip([guardiasInactivosStream, residentesInactivosStream]),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {

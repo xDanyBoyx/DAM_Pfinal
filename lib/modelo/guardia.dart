@@ -14,7 +14,7 @@ class Guardia {
     required this.rango,
     required this.email,
     required this.password,
-    this.active = false
+    this.active = false,
   });
 
   // Recibe un mapa (los datos de Firestore) y crea un objeto Guardia.

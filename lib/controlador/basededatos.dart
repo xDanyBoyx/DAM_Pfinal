@@ -26,7 +26,7 @@ class DB {
           rango: mapa['rango'],
           email: mapa['email'],
           password: mapa['password'],
-          active: mapa['active']
+          active: mapa['active'],
       );
       temporal.add(guardia);
     });

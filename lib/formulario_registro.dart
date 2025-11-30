@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'controlador/basededatos.dart'; // Asegúrate que esta ruta sea correcta
-import 'authentication/authentication.dart'; // Asegúrate que esta ruta sea correcta
-
+import 'controlador/basededatos.dart';
+import 'authentication/authentication.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 class FormularioRegistro extends StatefulWidget {
   const FormularioRegistro({super.key});
 
@@ -79,21 +79,31 @@ class _FormularioRegistroState extends State<FormularioRegistro> {
           'name': _name.text,
           'edad': edadValue,
           'domicilio': {'calle': _calle.text, 'colonia': _colonia.text, 'noInt': _noInt.text},
-          'email': email, 'active': false, 'rol': 'residente',
+          'email': email,
+          'active': false,
+          'rol': 'residente',
+          'password': password,
+          'fecha_registro': FieldValue.serverTimestamp(),
         };
         await baseRemota.collection("residente").doc(uid).set(registroR);
       } else { // Guardia
         var query = await baseRemota.collection("guardia").get();
         bool noHayGuardias = query.docs.isEmpty;
         var registroG = {
-          'name': _name.text, 'edad': edadValue, 'rango': _rango.text,
-          'email': email, 'active': noHayGuardias, 'rol': 'guardia',
+          'name': _name.text,
+          'edad': edadValue,
+          'rango': _rango.text,
+          'email': email,
+          'active': noHayGuardias,
+          'rol': 'guardia',
+          'password': password,
+          'fecha_registro': FieldValue.serverTimestamp(),
         };
         await baseRemota.collection("guardia").doc(uid).set(registroG);
       }
 
       if (context.mounted) {
-        Navigator.pop(context, true); // Devuelve 'true' para indicar éxito
+        Navigator.pop(context, true);
       }
     } on FirebaseAuthException catch (e) {
       _mostrarError("Error de registro: ${e.message}");
@@ -129,25 +139,58 @@ class _FormularioRegistroState extends State<FormularioRegistro> {
             const SizedBox(height: 20),
 
             // --- Campos de texto ---
-            TextField(controller: _name, decoration: const InputDecoration(labelText: "Nombre")),
+            TextField(
+                controller: _name,
+                decoration: const InputDecoration(
+                    labelText: "Nombre")
+            ),
             const SizedBox(height: 10),
-            TextField(controller: _edad, decoration: const InputDecoration(labelText: "Edad"), keyboardType: TextInputType.number),
+            TextField(
+                controller: _edad,
+                decoration: const InputDecoration(
+                    labelText: "Edad"),
+                keyboardType: TextInputType.number
+            ),
             const SizedBox(height: 10),
 
             if (_itemSeleccionado == "RESIDENTE") ...[
-              TextField(controller: _calle, decoration: const InputDecoration(labelText: "Calle")),
+              TextField(
+                  controller: _calle,
+                  decoration: const InputDecoration(
+                      labelText: "Calle")
+              ),
               const SizedBox(height: 10),
-              TextField(controller: _colonia, decoration: const InputDecoration(labelText: "Colonia")),
+              TextField(
+                  controller: _colonia,
+                  decoration: const InputDecoration(
+                      labelText: "Colonia")
+              ),
               const SizedBox(height: 10),
-              TextField(controller: _noInt, decoration: const InputDecoration(labelText: "No. de Casa")),
-            ] else ...[ // Campos para GUARDIA
-              TextField(controller: _rango, decoration: const InputDecoration(labelText: "Rango")),
+              TextField(
+                  controller: _noInt,
+                  decoration: const InputDecoration(
+                      labelText: "No. de Casa")
+              ),
+            ] else ...[ //guardia
+              TextField
+                (controller: _rango,
+                  decoration: const InputDecoration(
+                      labelText: "Rango")
+              ),
             ],
-
             const SizedBox(height: 10),
-            TextField(controller: _email, decoration: const InputDecoration(labelText: "Correo Electrónico"), keyboardType: TextInputType.emailAddress),
+            TextField(
+                controller: _email,
+                decoration: const InputDecoration(
+                    labelText: "Correo Electrónico"),
+                keyboardType: TextInputType.emailAddress
+            ),
             const SizedBox(height: 10),
-            TextField(controller: _password, decoration: const InputDecoration(labelText: "Contraseña"), obscureText: true),
+            TextField(
+                controller: _password,
+                decoration: const InputDecoration(
+                    labelText: "Contraseña"),
+                obscureText: true),
 
             const SizedBox(height: 20),
 
@@ -158,9 +201,13 @@ class _FormularioRegistroState extends State<FormularioRegistro> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TextButton(onPressed: () => Navigator.pop(context), child: const Text("CANCELAR")),
+                  TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text("CANCELAR")),
                   const SizedBox(width: 8),
-                  FilledButton(onPressed: _registrarUsuario, child: const Text("REGISTRAR")),
+                  FilledButton(
+                      onPressed: _registrarUsuario,
+                      child: const Text("REGISTRAR")),
                 ],
               )
           ],

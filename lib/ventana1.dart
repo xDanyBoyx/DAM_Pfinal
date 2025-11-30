@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
-// --- TUS IMPORTACIONES DE FUNCIONALIDAD ---
+import 'package:dam_pfinal/pantalla_lista_guardias.dart';
 import 'package:dam_pfinal/controlador/basededatos.dart';
 import 'package:dam_pfinal/modelo/incidencias.dart';
 import 'package:dam_pfinal/mapa_screen_guardia.dart'; // Tu mapa
 import 'package:dam_pfinal/incidencia_detalle_screen.dart'; // Tu pantalla de gestión
 
-// --- IMPORTACIONES DE LA VERSIÓN REMOTA ---
 import 'package:dam_pfinal/modelo/aviso.dart'; // Módulo de Avisos
 import 'package:dam_pfinal/main.dart'; // Para cerrar sesión
 import 'package:dam_pfinal/authentication/authentication.dart';
@@ -171,7 +169,6 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
                 );
               },
             ),
-
             ListTile(
               leading: const Icon(Icons.person_add),
               title: const Text('Validar Usuarios'),
@@ -180,6 +177,24 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const PantallaValidar()),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.people_outline),
+              title: const Text('Ver Personal de Guardia'),
+              onTap: () async { // <-- Convertir a async
+                // Obtenemos los datos del usuario actual ANTES de navegar
+                Guardia? guardiaActual = await obtenerDatosDeGuardia(widget.uid);
+                if (guardiaActual == null) return; // Si no se pudo cargar, no hacemos nada
+
+                Navigator.pop(context); // Cierra el Drawer
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    // Le pasamos el objeto del guardia actual a la pantalla de la lista
+                    builder: (context) => PantallaListaGuardias(guardiaActual: guardiaActual),
+                  ),
                 );
               },
             ),

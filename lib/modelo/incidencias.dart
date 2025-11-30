@@ -23,7 +23,7 @@ class Incidencia {
   Incidencia({
     required this.id,
     required this.idResidente,
-    this.nombreResidente, // 🚨 Agregado al constructor 🚨
+    this.nombreResidente,
     required this.ubicacion,
     required this.timestamp,
     this.estado = 'Pendiente',

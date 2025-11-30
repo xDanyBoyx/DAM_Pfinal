@@ -7,8 +7,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'authentication/authentication.dart';
 import 'controlador/basededatos.dart';
 import 'formulario_registro.dart';
-// En la sección de imports de lib/main.dart
-import 'package:dam_pfinal/VentanaResidente.dart'; // Asegúrate de que este archivo existe
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -181,7 +180,7 @@ class _MyAppState extends State<MyApp> {
     if (tipoUsuario == "residente") {
       String? uid = Auth().microServicio.currentUser?.uid;
       if (uid != null) {
-        return ventanaResidente(uid: uid);
+        return VentanaResidente(uid: uid);
       }
     }
 
