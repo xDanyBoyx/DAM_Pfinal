@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:dam_pfinal/main.dart';
 import 'package:dam_pfinal/authentication/authentication.dart';
+import 'package:dam_pfinal/modelo/guardia.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:dam_pfinal/VentanaValidacion.dart';
+
 
 class VentanaGuardia extends StatefulWidget {
-  const VentanaGuardia({super.key});
+  final String uid;
+
+  const VentanaGuardia({super.key, required this.uid});
 
   @override
   State<VentanaGuardia> createState() => _VentanaGuardiaState();
@@ -11,6 +17,19 @@ class VentanaGuardia extends StatefulWidget {
 
 class _VentanaGuardiaState extends State<VentanaGuardia> {
   int _selectedIndex = 0;
+
+
+  Future<Guardia?> obtenerDatosDeGuardia(String uid) async {
+    try {
+      DocumentSnapshot doc = await FirebaseFirestore.instance.collection('guardia').doc(uid).get();
+      if (doc.exists) {
+        return Guardia.fromFirestore(doc.data() as Map<String, dynamic>, doc.id);
+      }
+    } catch (e) {
+      print("Error al obtener datos del guardia: $e");
+    }
+    return null;
+  }
 
 
   static final List<Widget> _widgetOptions = <Widget>[
@@ -30,31 +49,33 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading: true,
+        backgroundColor: Colors.indigo.shade300,
         title: const Text(
-          "Fraccionamiento",
-          style: TextStyle(color: Colors.white),
+          "Guardia",
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
-        backgroundColor: Colors.indigo.shade300,
-      ),
-      body: Center(
-        child: _widgetOptions.elementAt(_selectedIndex),
+        elevation: 0,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            bottomRight: Radius.circular(100),
+          ),
+        ),
       ),
 
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
-            icon: Icon(Icons.map), label: 'Map',
+            icon: Icon(Icons.map), label: 'Mapa',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.access_time_outlined), label: 'Reportes',
+            icon: Icon(Icons.access_time_outlined), label: 'Alertas',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.report_outlined), label: 'Reportes',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.people_outlined), label: 'Guardias',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.apple), label: 'N3',
           ),
         ],
         currentIndex: _selectedIndex,
@@ -68,41 +89,74 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
-            DrawerHeader(
-              decoration: BoxDecoration(
-                color: Colors.indigo.shade300,
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircleAvatar(
-                    radius: 35,
-                    backgroundColor: Colors.white,
-                    child: Icon(
-                      Icons.person,
-                      size: 50,
-                      color: Colors.indigo.shade300,
-                    ),
+            // FutureBuilder adaptado para el modelo Guardia
+            FutureBuilder<Guardia?>(
+              // Llama a la nueva función
+              future: obtenerDatosDeGuardia(widget.uid),
+              builder: (context, snapshot) {
+                // Casos de "cargando" y "error" siguen igual...
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return DrawerHeader(
+                    decoration: BoxDecoration(color: Colors.indigo.shade300),
+                    child: const Center(child: CircularProgressIndicator(color: Colors.white)),
+                  );
+                }
+                if (snapshot.hasError || !snapshot.hasData) {
+                  return DrawerHeader(
+                    decoration: BoxDecoration(color: Colors.indigo.shade300),
+                    child: const Center(child: Text('Error al cargar perfil', style: TextStyle(color: Colors.white))),
+                  );
+                }
+
+                // --- ¡Tenemos el objeto Guardia! ---
+                var guardia = snapshot.data!; // Ahora esto es un objeto Guardia
+
+                return DrawerHeader(
+                  decoration: BoxDecoration(color: Colors.indigo.shade300),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const CircleAvatar(
+                        radius: 35,
+                        backgroundColor: Colors.white,
+                        child: Icon(Icons.person, size: 50, color: Colors.indigo),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        guardia.name, // <-- Usamos el objeto directamente: guardia.name
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Text(
+                        guardia.email, // <-- Usamos el objeto directamente: guardia.email
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    "Nombre del Usuario",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  Text(
-                    "usuario@email.com",
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
+                );
+              },
             ),
+            // ============ INICIO DEL NUEVO CÓDIGO A PEGAR ============
+            ListTile(
+              leading: const Icon(Icons.person_add),
+              title: const Text('Validar Usuarios'),
+              onTap: () {
+                // Cierra el drawer primero
+                Navigator.pop(context);
+                // Navega a la nueva pantalla de validación
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const PantallaValidar()),
+                );
+              },
+            ),
+            const Divider(),
             ListTile(
               leading: Icon(Icons.logout),
               title: const Text('Cerrar Sesión'),
