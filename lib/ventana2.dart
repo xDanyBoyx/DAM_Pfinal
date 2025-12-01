@@ -17,7 +17,6 @@ class VentanaResidente extends StatefulWidget {
 }
 
 class _VentanaResidenteState extends State<VentanaResidente> {
-
   // Función agregada por el equipo para obtener los datos del Residente logueado
   Future<Residente?> obtenerDatosDeResidente(String uid) async {
     try {
@@ -79,6 +78,16 @@ class _VentanaResidenteState extends State<VentanaResidente> {
           ),
           centerTitle: true,
           backgroundColor: Colors.indigo.shade300,
+
+          // <<--- Aquí añadí el botón de cerrar sesión en el AppBar
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.logout, color: Colors.white),
+              tooltip: 'Cerrar sesión',
+              onPressed: () => _mostrarDialogoDeCierreSesion(context),
+            ),
+          ],
+
           bottom: const TabBar(
             tabs: [
               Tab(text: "AVISOS", icon: Icon(Icons.campaign)), // Tu módulo R-4

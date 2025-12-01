@@ -75,7 +75,7 @@ class _FormularioAdminGuardiaState extends State<FormularioAdminGuardia> {
                 _buildTextFormField(_email, 'Email', Icons.email, keyboardType: TextInputType.emailAddress),
               const SizedBox(height: 15),
               _buildTextFormField(
-                  _password, 'Contraseña (dejar en blanco para no cambiar)',
+                  _password, 'Contraseña',
                   Icons.lock,
                   obscureText: true,
                   esRequerido: !_esModoEdicion

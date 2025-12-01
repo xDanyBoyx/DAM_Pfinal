@@ -1,3 +1,4 @@
+//IMPORTACIÓN PAQUETERÍAS UTILIZADAS
 import 'package:dam_pfinal/modelo/guardia.dart';
 import 'package:dam_pfinal/ventana1.dart';
 import 'package:dam_pfinal/ventana2.dart';
@@ -8,13 +9,12 @@ import 'authentication/authentication.dart';
 import 'controlador/basededatos.dart';
 import 'formulario_registro.dart';
 
-
+//LLAMADA DE CLASE A EJECUTAR
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
   runApp(MaterialApp(home: MyApp(), debugShowCheckedModeBanner: false));
 }
-
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
@@ -144,10 +144,18 @@ class _MyAppState extends State<MyApp> {
 
               // Si el formulario nos devolvió 'true', significa que el registro fue exitoso.
               if (registroExitoso == true && context.mounted) {
+                setState(() {
+                  tipoUsuario = "";
+                  mensaje = "";
+                });
+                // ADICIONAL: cerrar sesión después de registrar
+                await Auth().cerrarSesion();
+
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("¡REGISTRO EXITOSO! Espera la validación del administrador.")),
+                    const SnackBar(content: Text("¡REGISTRO EXITOSO! Espera la validación del administrador."))
                 );
               }
+
             },
             child: const Text(
               "CREAR USUARIO NUEVO",
