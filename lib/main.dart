@@ -8,11 +8,16 @@ import 'package:firebase_core/firebase_core.dart';
 import 'authentication/authentication.dart';
 import 'controlador/basededatos.dart';
 import 'formulario_registro.dart';
+import 'notification/notificaciones.dart'; // <-- IMPORTAMOS LA CLASE DE NOTIFICACIONES
 
 //LLAMADA DE CLASE A EJECUTAR
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+
+  // Inicializamos las notificaciones
+  await Notificaciones.init();
+
   runApp(MaterialApp(home: MyApp(), debugShowCheckedModeBanner: false));
 }
 
@@ -34,6 +39,9 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _determinarSesionInicial();
+
+    // --- INICIAMOS EL LISTENER DE NOTIFICACIONES ---
+    Notificaciones.escucharAvisos();
   }
 
   Widget build(BuildContext context) {
@@ -53,18 +61,13 @@ class _MyAppState extends State<MyApp> {
 
   Widget validar() {
     // --- CASO 1: El usuario NO está autenticado ---
-    // Muestra la pantalla de Login.
     if (!Auth().estaAutenticado()) {
       return ListView(
         padding: const EdgeInsets.all(30),
         children: [
           const SizedBox(height: 40),
-
           const SizedBox(height: 100),
-          Image.asset("assets/fondologo1.png",
-            width: 250,
-            height: 250,
-          ),
+          Image.asset("assets/fondologo1.png", width: 250, height: 250),
           const SizedBox(height: 50),
           TextField(
             controller: user,
@@ -83,19 +86,13 @@ class _MyAppState extends State<MyApp> {
             obscureText: true,
           ),
           const SizedBox(height: 40),
-
-          // --- BOTÓN DE INGRESAR ---
           FilledButton(
             onPressed: () async {
               try {
-                // 1. Intenta autenticar al usuario
                 String respuesta = await Auth().autenticacion(user.text, pass.text);
-
-                // 2. Si la autenticación es exitosa...
                 if (respuesta == "ok") {
                   String? uid = Auth().microServicio.currentUser?.uid;
                   if (uid != null) {
-                    // 3. ...llama a la función maestra para determinar el rol.
                     await determinarRolUsuario(uid);
                   } else {
                     setState(() {
@@ -103,13 +100,11 @@ class _MyAppState extends State<MyApp> {
                     });
                   }
                 } else {
-                  // Si la autenticación falla, muestra el mensaje de error de Firebase.
                   setState(() {
                     mensaje = respuesta;
                   });
                 }
               } catch (e) {
-                // Captura cualquier otro error inesperado durante el proceso.
                 setState(() {
                   mensaje = "Ocurrió un error inesperado: $e";
                 });
@@ -117,45 +112,33 @@ class _MyAppState extends State<MyApp> {
             },
             child: const Text("INGRESAR", style: TextStyle(fontSize: 20)),
           ),
-
-          // --- BOTÓN DE REGISTRO (CORREGIDO) ---
           TextButton(
             onPressed: () async {
-              // Limpia los controladores de login ANTES de abrir el diálogo.
-              // La función Limpiar() original ya no es necesaria aquí.
               user.clear();
               pass.clear();
-              setState(() {
-                mensaje = ""; // Limpia mensajes de error antiguos
-              });
+              setState(() { mensaje = ""; });
 
-              // Muestra el diálogo que contiene nuestro nuevo formulario aislado.
               final registroExitoso = await showDialog<bool>(
                 context: context,
                 builder: (context) {
                   return AlertDialog(
                     title: const Text("Registro de Usuario"),
-                    contentPadding: const EdgeInsets.all(0), // El padding ya está en el formulario
-                    content: const FormularioRegistro(), // <-- ¡AQUÍ ESTÁ LA MAGIA!
-                    // Nota: Ya no hay 'actions' aquí, los botones están dentro de FormularioRegistro
+                    contentPadding: const EdgeInsets.all(0),
+                    content: const FormularioRegistro(),
                   );
                 },
               );
 
-              // Si el formulario nos devolvió 'true', significa que el registro fue exitoso.
               if (registroExitoso == true && context.mounted) {
                 setState(() {
                   tipoUsuario = "";
                   mensaje = "";
                 });
-                // ADICIONAL: cerrar sesión después de registrar
                 await Auth().cerrarSesion();
-
                 ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text("¡REGISTRO EXITOSO! Espera la validación del administrador."))
                 );
               }
-
             },
             child: const Text(
               "CREAR USUARIO NUEVO",
@@ -175,46 +158,33 @@ class _MyAppState extends State<MyApp> {
       );
     }
 
-    // --- CASO 2: El usuario SÍ está autenticado ---
-    // Si el tipo de usuario ya se determinó, muestra la pantalla correspondiente.
-
+    // --- CASO 2: Usuario autenticado ---
     if (tipoUsuario == "guardia") {
       String? uid = Auth().microServicio.currentUser?.uid;
-      if (uid != null) {
-        return VentanaGuardia(uid: uid);
-      }
+      if (uid != null) return VentanaGuardia(uid: uid);
     }
 
     if (tipoUsuario == "residente") {
       String? uid = Auth().microServicio.currentUser?.uid;
-      if (uid != null) {
-        return VentanaResidente(uid: uid);
-      }
+      if (uid != null) return VentanaResidente(uid: uid);
     }
 
-    // --- CASO 3: Usuario autenticado pero AÚN NO se determina el rol ---
-    // Muestra un indicador de carga mientras `determinarRolUsuario` trabaja.
+    // --- CASO 3: Usuario autenticado pero aún no se determina el rol ---
     return const Center(child: CircularProgressIndicator());
   }
-
 
   Future<void> _determinarSesionInicial() async {
     if (Auth().estaAutenticado()) {
       String? uid = Auth().microServicio.currentUser?.uid;
-      if (uid != null) {
-        await determinarRolUsuario(uid);
-      }
+      if (uid != null) await determinarRolUsuario(uid);
     }
   }
 
   Future<void> determinarRolUsuario(String uid) async {
-    // 1. Buscar primero en la colección "guardia"
     var docGuardia = await baseRemota.collection("guardia").doc(uid).get();
     if (docGuardia.exists) {
       if (docGuardia.data()?['active'] == true) {
-        setState(() {
-          tipoUsuario = "guardia";
-        });
+        setState(() { tipoUsuario = "guardia"; });
       } else {
         setState(() {
           mensaje = "Tu cuenta de guardia está pendiente de activación.";
@@ -224,13 +194,10 @@ class _MyAppState extends State<MyApp> {
       return;
     }
 
-    // 2. Si no es guardia, buscar en la colección "residente"
     var docResidente = await baseRemota.collection("residente").doc(uid).get();
     if (docResidente.exists) {
       if (docResidente.data()?['active'] == true) {
-        setState(() {
-          tipoUsuario = "residente";
-        });
+        setState(() { tipoUsuario = "residente"; });
       } else {
         setState(() {
           mensaje = "Tu cuenta de residente está pendiente de activación.";
@@ -240,7 +207,6 @@ class _MyAppState extends State<MyApp> {
       return;
     }
 
-    // 3. Si no se encontró en ninguna colección
     setState(() {
       mensaje = "Error: Perfil no encontrado en la base de datos.";
       Auth().cerrarSesion();

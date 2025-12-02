@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:dam_pfinal/main.dart';
 import 'package:dam_pfinal/authentication/authentication.dart';
 import 'package:dam_pfinal/controlador/basededatos.dart';
 import 'package:dam_pfinal/modelo/aviso.dart';
 import 'package:dam_pfinal/modelo/residente.dart';
+import 'package:dam_pfinal/notification/notificaciones.dart';
 
-// El nombre de la clase se mantiene como VentanaResidente y ahora requiere el UID
 class VentanaResidente extends StatefulWidget {
   final String uid;
 
@@ -17,12 +18,32 @@ class VentanaResidente extends StatefulWidget {
 }
 
 class _VentanaResidenteState extends State<VentanaResidente> {
-  // Función agregada por el equipo para obtener los datos del Residente logueado
+  late Future<Residente?> _residenteFuture;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Cargar datos del residente
+    _residenteFuture = obtenerDatosDeResidente(widget.uid);
+
+    // Inicializar notificaciones locales
+    Notificaciones.init();
+
+    // Registrar listener solo cuando el widget esté montado
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        Notificaciones.escucharAvisos();
+      }
+    });
+  }
+
   Future<Residente?> obtenerDatosDeResidente(String uid) async {
     try {
-      DocumentSnapshot doc = await FirebaseFirestore.instance.collection('residente').doc(uid).get();
+      DocumentSnapshot doc =
+      await FirebaseFirestore.instance.collection('residente').doc(uid).get();
       if (doc.exists) {
-        // Asumiendo que el modelo Residente tiene un factory constructor fromFirestore
         return Residente.fromFirestore(doc.data() as Map<String, dynamic>, doc.id);
       }
     } catch (e) {
@@ -31,7 +52,6 @@ class _VentanaResidenteState extends State<VentanaResidente> {
     return null;
   }
 
-  // Función de cierre de sesión
   void _mostrarDialogoDeCierreSesion(BuildContext context) {
     showDialog(
       context: context,
@@ -64,123 +84,10 @@ class _VentanaResidenteState extends State<VentanaResidente> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // Se mantiene el DefaultTabController para tu módulo R-4 (Avisos)
-    return DefaultTabController(
-      length: 2, // Avisos y Historial
-      child: Scaffold(
-        appBar: AppBar(
-          automaticallyImplyLeading: false,
-          title: const Text(
-            "MI FRACCIONAMIENTO",
-            style: TextStyle(color: Colors.white),
-          ),
-          centerTitle: true,
-          backgroundColor: Colors.indigo.shade300,
-
-          // <<--- Aquí añadí el botón de cerrar sesión en el AppBar
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.logout, color: Colors.white),
-              tooltip: 'Cerrar sesión',
-              onPressed: () => _mostrarDialogoDeCierreSesion(context),
-            ),
-          ],
-
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: "AVISOS", icon: Icon(Icons.campaign)), // Tu módulo R-4
-              Tab(text: "HISTORIAL", icon: Icon(Icons.history)), // Tarea R-3
-            ],
-            labelStyle: TextStyle(color: Colors.red, fontSize: 16),
-            unselectedLabelStyle: TextStyle(color: Colors.white, fontSize: 12),
-            indicatorWeight: 5,
-          ),
-        ),
-
-        body: TabBarView(
-          children: [
-            _pantallaAvisos(), // Tu implementación R-4: Lectura de Avisos
-            _pantallaHistorial(), // Placeholder para R-3
-          ],
-        ),
-
-        // Drawer integrado desde la versión remota
-        drawer: Drawer(
-          child: ListView(
-            padding: EdgeInsets.zero,
-            children: [
-              // FutureBuilder para cargar los datos del Residente
-              FutureBuilder<Residente?>(
-                future: obtenerDatosDeResidente(widget.uid),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return DrawerHeader(
-                      decoration: BoxDecoration(color: Colors.indigo.shade300),
-                      child: const Center(child: CircularProgressIndicator(color: Colors.white)),
-                    );
-                  }
-                  if (snapshot.hasError || !snapshot.hasData) {
-                    return DrawerHeader(
-                      decoration: BoxDecoration(color: Colors.indigo.shade300),
-                      child: const Center(child: Text('Error al cargar perfil', style: TextStyle(color: Colors.white))),
-                    );
-                  }
-
-                  var residente = snapshot.data!;
-
-                  return DrawerHeader(
-                    decoration: BoxDecoration(color: Colors.indigo.shade300),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const CircleAvatar(
-                          radius: 35,
-                          backgroundColor: Colors.white,
-                          child: Icon(Icons.person, size: 50, color: Colors.indigo),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          residente.name, // Usando el objeto Residente
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        Text(
-                          residente.email, // Usando el objeto Residente
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.logout),
-                title: const Text('Cerrar Sesión'),
-                onTap: () {
-                  _mostrarDialogoDeCierreSesion(context);
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // R-4: Diseño para mostrar un Aviso individual en un Card
   Widget _avisoCard(Aviso aviso) {
-    // Formato de fecha para que se vea legible
-    final String fechaFormato = '${aviso.fecha.day.toString().padLeft(2, '0')}/${aviso.fecha.month.toString().padLeft(2, '0')}/${aviso.fecha.year} ${aviso.fecha.hour.toString().padLeft(2, '0')}:${aviso.fecha.minute.toString().padLeft(2, '0')}';
+    final String fechaFormato =
+        '${aviso.fecha.day.toString().padLeft(2, '0')}/${aviso.fecha.month.toString().padLeft(2, '0')}/${aviso.fecha.year} '
+        '${aviso.fecha.hour.toString().padLeft(2, '0')}:${aviso.fecha.minute.toString().padLeft(2, '0')}';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 15.0),
@@ -200,13 +107,11 @@ class _VentanaResidenteState extends State<VentanaResidente> {
               ),
             ),
             const SizedBox(height: 8),
-
             Text(
               aviso.contenido,
               style: const TextStyle(fontSize: 14, color: Colors.black87),
             ),
             const SizedBox(height: 15),
-
             const Divider(),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -227,7 +132,6 @@ class _VentanaResidenteState extends State<VentanaResidente> {
     );
   }
 
-  // R-4: Pantalla para mostrar la lista de Avisos (FutureBuilder para la BD)
   Widget _pantallaAvisos() {
     return FutureBuilder<List<Aviso>>(
       future: DB.mostrarAvisos(),
@@ -256,8 +160,116 @@ class _VentanaResidenteState extends State<VentanaResidente> {
     );
   }
 
-  // R-3: Placeholder para la tarea de Diego (Historial de Alertas)
   Widget _pantallaHistorial() {
-    return const Center(child: Text("Pantalla de Historial de Alertas (Tarea R-3)", style: TextStyle(fontSize: 18)));
+    return const Center(
+        child: Text("Pantalla de Historial de Alertas (Tarea R-3)",
+            style: TextStyle(fontSize: 18)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          title: const Text(
+            "MI FRACCIONAMIENTO",
+            style: TextStyle(color: Colors.white),
+          ),
+          centerTitle: true,
+          backgroundColor: Colors.indigo.shade300,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.logout, color: Colors.white),
+              tooltip: 'Cerrar sesión',
+              onPressed: () => _mostrarDialogoDeCierreSesion(context),
+            ),
+          ],
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: "AVISOS", icon: Icon(Icons.campaign)),
+              Tab(text: "HISTORIAL", icon: Icon(Icons.history)),
+            ],
+            labelStyle: TextStyle(color: Colors.red, fontSize: 16),
+            unselectedLabelStyle: TextStyle(color: Colors.white, fontSize: 12),
+            indicatorWeight: 5,
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            _pantallaAvisos(),
+            _pantallaHistorial(),
+          ],
+        ),
+        drawer: Drawer(
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              FutureBuilder<Residente?>(
+                future: _residenteFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return DrawerHeader(
+                      decoration: BoxDecoration(color: Colors.indigo.shade300),
+                      child: const Center(
+                          child: CircularProgressIndicator(color: Colors.white)),
+                    );
+                  }
+                  if (snapshot.hasError || !snapshot.hasData) {
+                    return DrawerHeader(
+                      decoration: BoxDecoration(color: Colors.indigo.shade300),
+                      child: const Center(
+                          child: Text('Error al cargar perfil',
+                              style: TextStyle(color: Colors.white))),
+                    );
+                  }
+
+                  var residente = snapshot.data!;
+
+                  return DrawerHeader(
+                    decoration: BoxDecoration(color: Colors.indigo.shade300),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const CircleAvatar(
+                          radius: 35,
+                          backgroundColor: Colors.white,
+                          child: Icon(Icons.person, size: 50, color: Colors.indigo),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          residente.name,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        Text(
+                          residente.email,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.logout),
+                title: const Text('Cerrar Sesión'),
+                onTap: () {
+                  _mostrarDialogoDeCierreSesion(context);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

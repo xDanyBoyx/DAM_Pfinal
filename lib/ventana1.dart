@@ -4,14 +4,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dam_pfinal/pantalla_lista_guardias.dart';
 import 'package:dam_pfinal/controlador/basededatos.dart';
 import 'package:dam_pfinal/modelo/incidencias.dart';
-import 'package:dam_pfinal/mapa_screen_guardia.dart'; // Tu mapa
-import 'package:dam_pfinal/incidencia_detalle_screen.dart'; // Tu pantalla de gestión
-
-import 'package:dam_pfinal/modelo/aviso.dart'; // Módulo de Avisos
-import 'package:dam_pfinal/main.dart'; // Para cerrar sesión
+import 'package:dam_pfinal/mapa_screen_guardia.dart';
+import 'package:dam_pfinal/incidencia_detalle_screen.dart';
+import 'package:dam_pfinal/modelo/aviso.dart';
+import 'package:dam_pfinal/main.dart';
 import 'package:dam_pfinal/authentication/authentication.dart';
-import 'package:dam_pfinal/modelo/guardia.dart'; // Modelo para el Drawer
-import 'package:dam_pfinal/VentanaValidacion.dart'; // Pantalla de validación
+import 'package:dam_pfinal/modelo/guardia.dart';
+import 'package:dam_pfinal/VentanaValidacion.dart';
+
+import 'notification/notificaciones.dart'; // Asegúrate de importar tu clase Notificaciones
 
 class VentanaGuardia extends StatefulWidget {
   final String uid;
@@ -24,28 +25,29 @@ class VentanaGuardia extends StatefulWidget {
 
 class _VentanaGuardiaState extends State<VentanaGuardia> {
   int _selectedIndex = 0;
-  // Tu Future para la lista de incidencias
   late Future<List<Incidencia>> _incidenciasFuture;
-
-  // Controladores para el módulo de Avisos (Remoto)
   final tituloController = TextEditingController();
   final contenidoController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+
     // Inicializa tu Future de Incidencias
     _incidenciasFuture = DB.mostrarIncidenciasPendientes();
+
+    // Inicializa el plugin de notificaciones
+    Notificaciones.init();
+
+    // Escucha los avisos en tiempo real
+    Notificaciones.escucharAvisos();
   }
 
-  // --- LÓGICA DE LA VERSIÓN REMOTA ---
-
-  // Función para obtener los datos del Guardia (Drawer)
   Future<Guardia?> obtenerDatosDeGuardia(String uid) async {
     try {
-      DocumentSnapshot doc = await FirebaseFirestore.instance.collection('guardia').doc(uid).get();
+      DocumentSnapshot doc =
+      await FirebaseFirestore.instance.collection('guardia').doc(uid).get();
       if (doc.exists) {
-        // Asume que el modelo Guardia tiene un factory constructor fromFirestore
         return Guardia.fromFirestore(doc.data() as Map<String, dynamic>, doc.id);
       }
     } catch (e) {
@@ -54,13 +56,11 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
     return null;
   }
 
-  // Se define la lista de opciones de widgets, combinando local y remoto
-  // 🚨 COMBINACIÓN CLAVE EN _widgetOptions 🚨
   late final List<Widget> _widgetOptions = <Widget>[
-    const GuardiaMapaScreen(),    // 0. MAPA (Tu Widget G-2)
-    _listaIncidencias(),          // 1. INCIDENCIAS (Tu Widget G-3)
-    n2(),                         // 2. Alertas/Reportes (Remoto Placeholder)
-    _pantallaGestionAvisos(),     // 3. Avisos (Módulo Remoto G-6, G-7)
+    const GuardiaMapaScreen(),
+    _listaIncidencias(),
+    n2(),
+    _pantallaGestionAvisos(),
   ];
 
   void _onItemTapped(int index) {
@@ -86,36 +86,26 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
           ),
         ),
       ),
-
       body: Center(
         child: _widgetOptions.elementAt(_selectedIndex),
       ),
-
-      // BottomNavigationBar unificado (4 ítems)
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
+          BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Mapa'),
           BottomNavigationBarItem(
-            icon: Icon(Icons.map), label: 'Mapa',
-          ),
+              icon: Icon(Icons.access_time_outlined), label: 'Incidencias'),
           BottomNavigationBarItem(
-            icon: Icon(Icons.access_time_outlined), label: 'Incidencias',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.report_outlined), label: 'Alertas',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.campaign), label: 'Avisos',
-          ),
+              icon: Icon(Icons.report_outlined), label: 'Alertas'),
+          BottomNavigationBarItem(icon: Icon(Icons.campaign), label: 'Avisos'),
         ],
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
         backgroundColor: Colors.indigo.shade300,
         selectedItemColor: Colors.black,
-        unselectedItemColor: Colors.white70, unselectedFontSize: 12,
+        unselectedItemColor: Colors.white70,
+        unselectedFontSize: 12,
         type: BottomNavigationBarType.fixed,
       ),
-
-      // Drawer unificado (Perfil del Guardia y Navegación)
       drawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
@@ -126,18 +116,20 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return DrawerHeader(
                     decoration: BoxDecoration(color: Colors.indigo.shade300),
-                    child: const Center(child: CircularProgressIndicator(color: Colors.white)),
+                    child: const Center(
+                        child: CircularProgressIndicator(color: Colors.white)),
                   );
                 }
                 if (snapshot.hasError || !snapshot.hasData) {
                   return DrawerHeader(
                     decoration: BoxDecoration(color: Colors.indigo.shade300),
-                    child: const Center(child: Text('Error al cargar perfil', style: TextStyle(color: Colors.white))),
+                    child: const Center(
+                        child: Text('Error al cargar perfil',
+                            style: TextStyle(color: Colors.white))),
                   );
                 }
 
                 var guardia = snapshot.data!;
-
                 return DrawerHeader(
                   decoration: BoxDecoration(color: Colors.indigo.shade300),
                   child: Column(
@@ -152,17 +144,14 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
                       Text(
                         guardia.name,
                         style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16),
                       ),
                       Text(
                         guardia.email,
                         style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                        ),
+                            color: Colors.white70, fontSize: 14),
                       ),
                     ],
                   ),
@@ -183,23 +172,21 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
             ListTile(
               leading: const Icon(Icons.people_outline),
               title: const Text('Ver Personal de Guardia'),
-              onTap: () async { // <-- Convertir a async
-                // Obtenemos los datos del usuario actual ANTES de navegar
-                Guardia? guardiaActual = await obtenerDatosDeGuardia(widget.uid);
-                if (guardiaActual == null) return; // Si no se pudo cargar, no hacemos nada
-
-                Navigator.pop(context); // Cierra el Drawer
+              onTap: () async {
+                Guardia? guardiaActual =
+                await obtenerDatosDeGuardia(widget.uid);
+                if (guardiaActual == null) return;
+                Navigator.pop(context);
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    // Le pasamos el objeto del guardia actual a la pantalla de la lista
-                    builder: (context) => PantallaListaGuardias(guardiaActual: guardiaActual),
+                    builder: (context) =>
+                        PantallaListaGuardias(guardiaActual: guardiaActual),
                   ),
                 );
               },
             ),
             const Divider(),
-
             ListTile(
               leading: const Icon(Icons.logout),
               title: const Text('Cerrar Sesión'),
@@ -213,31 +200,30 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
     );
   }
 
-  // --- TUS WIDGETS DE INCIDENCIAS (G-3) ---
-  Widget _listaIncidencias(){
+  // --- Incidencias ---
+  Widget _listaIncidencias() {
     return FutureBuilder(
       future: _incidenciasFuture,
       builder: (context, AsyncSnapshot<List<Incidencia>> snapshot) {
-
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-
         if (snapshot.hasError) {
-          return Center(child: Text("Error al cargar incidencias: ${snapshot.error}"));
+          return Center(
+              child: Text("Error al cargar incidencias: ${snapshot.error}"));
         }
-
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(child: Text("No hay incidencias pendientes o en curso."));
+          return const Center(
+              child: Text("No hay incidencias pendientes o en curso."));
         }
-
         final incidencias = snapshot.data!;
         return ListView.builder(
           itemCount: incidencias.length,
           itemBuilder: (context, index) {
             final incidencia = incidencias[index];
-            final color = incidencia.estado == 'Pendiente' ? Colors.red.shade600 : Colors.orange.shade600;
-
+            final color = incidencia.estado == 'Pendiente'
+                ? Colors.red.shade600
+                : Colors.orange.shade600;
             return Card(
               elevation: 4,
               margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
@@ -248,22 +234,16 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
                 ),
                 title: Text('Alerta de Residente: ${incidencia.nombreResidente}',
                     style: const TextStyle(fontWeight: FontWeight.bold)),
-
                 subtitle: Text(
-                    'Detalles: ${incidencia.detalles ?? 'No proporcionados'}\n'
-                        'Estado: ${incidencia.estado}\n'
-                        'Hora: ${incidencia.timestamp.toDate().toLocal().toString().substring(11, 19)}'
-                ),
-
+                    'Detalles: ${incidencia.detalles ?? 'No proporcionados'}\nEstado: ${incidencia.estado}\nHora: ${incidencia.timestamp.toDate().toLocal().toString().substring(11, 19)}'),
                 trailing: const Icon(Icons.arrow_forward_ios),
                 onTap: () async {
                   final result = await Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => IncidenciaDetalleScreen(incidencia: incidencia),
-                    ),
+                        builder: (context) =>
+                            IncidenciaDetalleScreen(incidencia: incidencia)),
                   );
-                  // Recargar la lista después de la gestión
                   if (result == true) {
                     setState(() {
                       _incidenciasFuture = DB.mostrarIncidenciasPendientes();
@@ -278,15 +258,10 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
     );
   }
 
-  // --- LÓGICA DE GESTIÓN DE AVISOS (Remoto) ---
-
-  // G-6: Función para crear un nuevo aviso
+  // --- Avisos ---
   Future<void> _enviarAviso() async {
     final User? user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      print("Error: Usuario no autenticado");
-      return;
-    }
+    if (user == null) return;
 
     final nuevoAviso = Aviso(
       titulo: tituloController.text.trim(),
@@ -307,7 +282,6 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
     }
   }
 
-  // G-7: Lógica para eliminar el aviso
   Future<void> _eliminarAviso(Aviso aviso) async {
     String resultado = await DB.eliminarAviso(aviso.id);
     if (resultado == "ok") {
@@ -318,7 +292,6 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
     }
   }
 
-  // G-7: Lógica para mostrar y manejar el diálogo de edición
   Future<void> _mostrarDialogoEdicion(BuildContext context, Aviso aviso) async {
     final editTituloController = TextEditingController(text: aviso.titulo);
     final editContenidoController = TextEditingController(text: aviso.contenido);
@@ -361,7 +334,6 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
                   creadoPor: aviso.creadoPor,
                   fecha: aviso.fecha,
                 );
-
                 String resultado = await DB.actualizarAviso(avisoModificado);
                 if (resultado == "ok") {
                   setState(() {});
@@ -377,7 +349,6 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
     );
   }
 
-  // G-7: Diseño de la tarjeta de gestión
   Widget _avisoCardGestion(Aviso aviso) {
     return Card(
       margin: const EdgeInsets.only(bottom: 10.0),
@@ -406,34 +377,51 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
     );
   }
 
-  // G-6, G-7: Pantalla de Gestión de Avisos
+// --- Avisos ---
   Widget _pantallaGestionAvisos() {
-    return FutureBuilder<List<Aviso>>(
-      future: DB.mostrarAvisos(),
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('avisos').orderBy('fecha', descending: true).snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error al cargar avisos: ${snapshot.error}'));
+        }
 
-        final avisos = snapshot.data ?? [];
+        // Convertimos los documentos a objetos Aviso
+        final avisos = snapshot.data?.docs
+            .map((doc) => Aviso.fromMap(doc.id, doc.data() as Map<String, dynamic>))
+            .toList() ??
+            [];
 
         return Column(
           children: [
-            // Formulario de Creación
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text("Crear Nuevo Aviso", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+                  Text("Crear Nuevo Aviso",
+                      style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.indigo.shade800)),
                   const SizedBox(height: 15),
-                  TextField(controller: tituloController, decoration: const InputDecoration(labelText: "Título")),
+                  TextField(
+                      controller: tituloController,
+                      decoration: const InputDecoration(labelText: "Título")),
                   const SizedBox(height: 10),
-                  TextField(controller: contenidoController, decoration: const InputDecoration(labelText: "Contenido"), maxLines: 3),
+                  TextField(
+                    controller: contenidoController,
+                    decoration: const InputDecoration(labelText: "Contenido"),
+                    maxLines: 3,
+                  ),
                   const SizedBox(height: 20),
                   ElevatedButton.icon(
                     onPressed: () {
-                      if (tituloController.text.isNotEmpty && contenidoController.text.isNotEmpty) {
+                      if (tituloController.text.isNotEmpty &&
+                          contenidoController.text.isNotEmpty) {
                         _enviarAviso();
                       }
                     },
@@ -444,8 +432,6 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
                 ],
               ),
             ),
-
-            // Lista de Gestión (Lectura, Edición, Eliminación)
             Expanded(
               child: avisos.isEmpty
                   ? const Center(child: Text('No hay avisos publicados para gestionar.'))
@@ -462,7 +448,6 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
     );
   }
 
-  // Función de cierre de sesión (Unificada)
   void _mostrarDialogoDeCierreSesion(BuildContext context) {
     showDialog(
       context: context,
@@ -495,8 +480,6 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
   }
 }
 
-// Estos widgets son los placeholders que se mantuvieron de la versión remota
-// El índice 2 ("Alertas") se mantuvo como n2()
 Widget n2() {
   return const Center(child: Text("Contenido de ALERTAS/REPORTES"));
 }
