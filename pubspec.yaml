@@ -35,10 +35,12 @@ dependencies:
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
+  shake: ^3.0.0
   cupertino_icons: ^1.0.8
   firebase_core: ^4.2.1
   firebase_auth: ^6.1.2
   cloud_firestore: ^6.1.0
+
 
   # Dependencias de tu trabajo (Mapa y Geolocalización)
   google_maps_flutter: ^2.5.0
