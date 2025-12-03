@@ -72,9 +72,6 @@ class _IncidenciaDetalleScreenState extends State<IncidenciaDetalleScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // -------------------
-                // DATOS DE RESIDENTE
-                // -------------------
                 Text('Residente:', style: Theme.of(context).textTheme.titleSmall),
                 Text(
                   widget.incidencia.nombreResidente ?? 'Desconocido',
@@ -87,48 +84,36 @@ class _IncidenciaDetalleScreenState extends State<IncidenciaDetalleScreen> {
                 ),
                 const Divider(),
 
-                // -------------------
-                // ESTADO ACTUAL
-                // -------------------
-                Text('Estado Actual:', style: Theme.of(context).textTheme.titleSmall),
-                Text(
-                  widget.incidencia.estado,
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: widget.incidencia.estado == 'Pendiente'
-                        ? Colors.red.shade700
-                        : widget.incidencia.estado == 'En Curso'
-                        ? Colors.orange.shade800
-                        : Colors.green.shade700,
+                  // -------------------
+                  // ESTADO ACTUAL
+                  // -------------------
+                  Text('Estado Actual:', style: Theme.of(context).textTheme.titleSmall),
+                  Text(
+                    widget.incidencia.estado,
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: widget.incidencia.estado == 'Pendiente'
+                          ? Colors.red.shade700
+                          : widget.incidencia.estado == 'En Curso'
+                          ? Colors.orange.shade800
+                          : Colors.green.shade700,
+                    ),
                   ),
-                ),
-                const Divider(),
 
-                // -------------------
-                // DETALLES
-                // -------------------
-                Text('Detalles Adicionales:', style: Theme.of(context).textTheme.titleMedium),
-                Text(widget.incidencia.detalles ?? 'No proporcionados.'),
+                  const SizedBox(height: 30),
+                  const Text('Acciones del Guardia', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const Divider(),
+                  const SizedBox(height: 10),
 
-                const SizedBox(height: 20),
+                  // --- ACCIONES DEL GUARDIA: Sin Atender / Atendido ---
 
-                Text('Hora de Alerta:', style: Theme.of(context).textTheme.titleMedium),
-                Text(widget.incidencia.timestamp.toDate().toLocal().toString()),
-
-                const SizedBox(height: 40),
-
-                // -------------------
-                // BOTONES DE ESTADO
-                // -------------------
-                // Solo mostramos botones si NO está cargando
-                if (!_estaCargando) ...[
-
-                  if (widget.incidencia.estado == 'Pendiente')
+                  // 1. Botón para marcar como 'Sin atender' (Pendiente)
+                  if (widget.incidencia.estado != 'Pendiente') // Si no está ya pendiente
                     ElevatedButton.icon(
-                      onPressed: () => _actualizarEstado('En Curso'),
-                      icon: const Icon(Icons.directions_run),
-                      label: const Text('Tomar / En Curso'),
+                      onPressed: _estaCargando ? null : () => _actualizarEstado('Pendiente'),
+                      icon: const Icon(Icons.watch_later),
+                      label: const Text('Marcar como Sin Atender'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.orange.shade700,
                         foregroundColor: Colors.white,
@@ -138,22 +123,19 @@ class _IncidenciaDetalleScreenState extends State<IncidenciaDetalleScreen> {
 
                   const SizedBox(height: 15),
 
-                  if (widget.incidencia.estado != 'Resuelta')
+                  // 2. Botón para marcar como 'Atendido' (Resuelta)
+                  if (widget.incidencia.estado != 'Resuelta') // Si no está ya resuelta
                     ElevatedButton.icon(
-                      onPressed: () => _actualizarEstado('Resuelta'),
+                      onPressed: _estaCargando ? null : () => _actualizarEstado('Resuelta'),
                       icon: const Icon(Icons.check_circle),
-                      label: Text(
-                        widget.incidencia.estado == 'Pendiente'
-                            ? 'Resolver Directamente'
-                            : 'Finalizar / Resolver',
-                      ),
+                      label: const Text('Marcar como Atendido'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green.shade700,
                         foregroundColor: Colors.white,
                         minimumSize: const Size(double.infinity, 50),
                       ),
                     ),
-                ]
+                  const SizedBox(height: 15),
               ],
             ),
           ),
