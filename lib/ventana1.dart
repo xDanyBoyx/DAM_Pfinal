@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+
+// --- IMPORTS PROPIOS ---
 import 'package:dam_pfinal/pantalla_lista_guardias.dart';
 import 'package:dam_pfinal/controlador/basededatos.dart';
 import 'package:dam_pfinal/modelo/incidencias.dart';
@@ -11,8 +13,8 @@ import 'package:dam_pfinal/main.dart';
 import 'package:dam_pfinal/authentication/authentication.dart';
 import 'package:dam_pfinal/modelo/guardia.dart';
 import 'package:dam_pfinal/VentanaValidacion.dart';
-
-import 'notification/notificaciones.dart'; // Asegúrate de importar tu clase Notificaciones
+import 'package:dam_pfinal/modelo/alerta_panico.dart'; // <--- IMPORTANTE: Nuevo modelo
+import 'notification/notificaciones.dart';
 
 class VentanaGuardia extends StatefulWidget {
   final String uid;
@@ -25,20 +27,14 @@ class VentanaGuardia extends StatefulWidget {
 
 class _VentanaGuardiaState extends State<VentanaGuardia> {
   int _selectedIndex = 0;
-  late Future<List<Incidencia>> _incidenciasFuture;
   final tituloController = TextEditingController();
   final contenidoController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-
-    // Inicializa tu Future de Incidencias
-    _incidenciasFuture = DB.mostrarIncidenciasPendientes();
-
     // Inicializa el plugin de notificaciones
     Notificaciones.init();
-
     // Escucha los avisos en tiempo real
     Notificaciones.escucharAvisos();
   }
@@ -56,11 +52,13 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
     return null;
   }
 
+  // Definimos las opciones de las pestañas.
+  // Notar que ahora usamos _listaAlertas() en lugar de n2()
   late final List<Widget> _widgetOptions = <Widget>[
-    const GuardiaMapaScreen(),
-    _listaIncidencias(),
-    n2(),
-    _pantallaGestionAvisos(),
+    const GuardiaMapaScreen(),     // Índice 0: Mapa
+    _listaIncidencias(),           // Índice 1: Incidencias
+    _listaAlertas(),               // Índice 2: Alertas de Pánico (NUEVO)
+    _pantallaGestionAvisos(),      // Índice 3: Avisos
   ];
 
   void _onItemTapped(int index) {
@@ -87,6 +85,7 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
         ),
       ),
       body: Center(
+        // Usamos IndexedStack para mantener el estado o elementAt para reconstruir
         child: _widgetOptions.elementAt(_selectedIndex),
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -95,7 +94,7 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
           BottomNavigationBarItem(
               icon: Icon(Icons.access_time_outlined), label: 'Incidencias'),
           BottomNavigationBarItem(
-              icon: Icon(Icons.report_outlined), label: 'Alertas'),
+              icon: Icon(Icons.notifications_active), label: 'Alertas'), // Icono cambiado
           BottomNavigationBarItem(icon: Icon(Icons.campaign), label: 'Avisos'),
         ],
         currentIndex: _selectedIndex,
@@ -200,30 +199,38 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
     );
   }
 
-  // --- Incidencias ---
+  // ======================================================
+  // 1. INCIDENCIAS (STREAM)
+  // ======================================================
   Widget _listaIncidencias() {
-    return FutureBuilder(
-      future: _incidenciasFuture,
-      builder: (context, AsyncSnapshot<List<Incidencia>> snapshot) {
+    return StreamBuilder<List<Incidencia>>(
+      stream: DB.streamIncidenciasPendientes(),
+      builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
+
         if (snapshot.hasError) {
-          return Center(
-              child: Text("Error al cargar incidencias: ${snapshot.error}"));
+          return Center(child: Text("Error al cargar lista: ${snapshot.error}"));
         }
+
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return const Center(
-              child: Text("No hay incidencias pendientes o en curso."));
+            child: Text("¡Todo tranquilo! No hay incidencias pendientes."),
+          );
         }
+
         final incidencias = snapshot.data!;
+
         return ListView.builder(
           itemCount: incidencias.length,
           itemBuilder: (context, index) {
             final incidencia = incidencias[index];
+
             final color = incidencia.estado == 'Pendiente'
                 ? Colors.red.shade600
                 : Colors.orange.shade600;
+
             return Card(
               elevation: 4,
               margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
@@ -232,23 +239,29 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
                   backgroundColor: color,
                   child: const Icon(Icons.warning, color: Colors.white),
                 ),
-                title: Text('Alerta de Residente: ${incidencia.nombreResidente}',
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text(
-                    'Detalles: ${incidencia.detalles ?? 'No proporcionados'}\nEstado: ${incidencia.estado}\nHora: ${incidencia.timestamp.toDate().toLocal().toString().substring(11, 19)}'),
-                trailing: const Icon(Icons.arrow_forward_ios),
-                onTap: () async {
-                  final result = await Navigator.push(
+                title: Text(
+                  'Reporte: ${incidencia.nombreResidente ?? "Desconocido"}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(incidencia.detalles ?? 'Sin detalles'),
+                    Text(
+                      incidencia.timestamp.toDate().toLocal().toString().substring(0, 16),
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                  ],
+                ),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {
+                  Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (context) =>
-                            IncidenciaDetalleScreen(incidencia: incidencia)),
+                      builder: (context) =>
+                          IncidenciaDetalleScreen(incidencia: incidencia),
+                    ),
                   );
-                  if (result == true) {
-                    setState(() {
-                      _incidenciasFuture = DB.mostrarIncidenciasPendientes();
-                    });
-                  }
                 },
               ),
             );
@@ -258,7 +271,110 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
     );
   }
 
-  // --- Avisos ---
+  // ======================================================
+  // 2. ALERTAS DE PÁNICO (NUEVO) 🚨
+  // ======================================================
+  Widget _listaAlertas() {
+    return StreamBuilder<List<AlertaPanico>>(
+      stream: DB.streamAlertas(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text("Error: ${snapshot.error}"));
+        }
+
+        // Si no hay alertas
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.check_circle_outline, size: 80, color: Colors.green),
+                SizedBox(height: 10),
+                Text("Sin alertas de pánico activas.", style: TextStyle(fontSize: 16)),
+              ],
+            ),
+          );
+        }
+
+        final alertas = snapshot.data!;
+
+        return ListView.builder(
+          itemCount: alertas.length,
+          itemBuilder: (context, index) {
+            final alerta = alertas[index];
+            return Card(
+              color: Colors.red.shade50, // Fondo rojizo para urgencia
+              margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              elevation: 5,
+              child: ListTile(
+                contentPadding: const EdgeInsets.all(10),
+                leading: const CircleAvatar(
+                  radius: 25,
+                  backgroundColor: Colors.red,
+                  child: Icon(Icons.notifications_active, color: Colors.white),
+                ),
+                title: Text(
+                  "SOS: ${alerta.nombreResidente ?? 'Desconocido'}",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red.shade900,
+                    fontSize: 18,
+                  ),
+                ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 5),
+                    Text("Email: ${alerta.activadaPor}"),
+                    Text("Hora: ${alerta.fecha.toDate().toLocal().toString().substring(11, 19)}"),
+                  ],
+                ),
+                trailing: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () {
+                    // Acción para atender la alerta
+                    _confirmarAtencion(context, alerta);
+                  },
+                  child: const Text("ATENDER"),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Diálogo para confirmar antes de quitar la alerta
+  void _confirmarAtencion(BuildContext context, AlertaPanico alerta) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Atender Alerta"),
+        content: Text("¿Confirmas que has atendido la emergencia de ${alerta.nombreResidente}?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancelar")),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await DB.atenderAlerta(alerta.id); // Esto la quita de la lista
+            },
+            child: const Text("Sí, Atendida", style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ======================================================
+  // 3. AVISOS
+  // ======================================================
   Future<void> _enviarAviso() async {
     final User? user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -275,8 +391,10 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
     if (resultado == "ok") {
       tituloController.clear();
       contenidoController.clear();
-      setState(() {});
-      print("Aviso creado exitosamente.");
+      setState(() {}); // Forzar redibujado (opcional si usas stream en la vista)
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Aviso publicado exitosamente')),
+      );
     } else {
       print("Error al crear el aviso: $resultado");
     }
@@ -286,9 +404,6 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
     String resultado = await DB.eliminarAviso(aviso.id);
     if (resultado == "ok") {
       setState(() {});
-      print("Aviso ${aviso.titulo} eliminado.");
-    } else {
-      print("Error al eliminar aviso: $resultado");
     }
   }
 
@@ -337,9 +452,6 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
                 String resultado = await DB.actualizarAviso(avisoModificado);
                 if (resultado == "ok") {
                   setState(() {});
-                  print("Aviso ${aviso.titulo} actualizado.");
-                } else {
-                  print("Error al actualizar: $resultado");
                 }
               },
             ),
@@ -377,7 +489,6 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
     );
   }
 
-// --- Avisos ---
   Widget _pantallaGestionAvisos() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('avisos').orderBy('fecha', descending: true).snapshots(),
@@ -389,7 +500,6 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
           return Center(child: Text('Error al cargar avisos: ${snapshot.error}'));
         }
 
-        // Convertimos los documentos a objetos Aviso
         final avisos = snapshot.data?.docs
             .map((doc) => Aviso.fromMap(doc.id, doc.data() as Map<String, dynamic>))
             .toList() ??
@@ -478,8 +588,4 @@ class _VentanaGuardiaState extends State<VentanaGuardia> {
       },
     );
   }
-}
-
-Widget n2() {
-  return const Center(child: Text("Contenido de ALERTAS/REPORTES"));
 }

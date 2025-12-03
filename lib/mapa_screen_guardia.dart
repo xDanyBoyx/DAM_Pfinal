@@ -3,9 +3,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:dam_pfinal/controlador/basededatos.dart';
 import 'package:dam_pfinal/modelo/incidencias.dart';
-// 🚨 NECESARIO: Importar la pantalla de detalle para la navegación 🚨
+import 'package:dam_pfinal/modelo/alerta_panico.dart'; // <--- Importante
 import 'package:dam_pfinal/incidencia_detalle_screen.dart';
-
 
 class GuardiaMapaScreen extends StatefulWidget {
   const GuardiaMapaScreen({super.key});
@@ -15,6 +14,7 @@ class GuardiaMapaScreen extends StatefulWidget {
 }
 
 class _GuardiaMapaScreenState extends State<GuardiaMapaScreen> {
+  // Posición inicial por defecto
   static const CameraPosition _posicionInicial = CameraPosition(
     target: LatLng(21.4925, -104.8443),
     zoom: 14,
@@ -23,131 +23,189 @@ class _GuardiaMapaScreenState extends State<GuardiaMapaScreen> {
   Set<Marker> _markers = {};
   GoogleMapController? _mapController;
 
-  // Future que carga las incidencias y se actualiza con setState
-  late Future<List<Incidencia>> _incidenciasFuture;
+  bool _cargando = true;
   Position? _posicionActual;
 
   @override
   void initState() {
     super.initState();
-    _incidenciasFuture = _cargarDatosDelMapa();
+    _inicializarMapa();
   }
 
-  // Función que se encarga de obtener la posición y las incidencias
-  Future<List<Incidencia>> _cargarDatosDelMapa() async {
-    Position posicion = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high);
+  Future<void> _inicializarMapa() async {
+    try {
+      Position posicion = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high);
 
-    _posicionActual = posicion;
+      if (!mounted) return;
 
-    // Llama a la DB que ahora incluye la búsqueda del nombre del residente
-    List<Incidencia> listaIncidencias = await DB.mostrarIncidenciasPendientes();
-
-    // Actualiza los marcadores y la vista del mapa
-    _actualizarMapa(posicion, listaIncidencias);
-
-    return listaIncidencias;
+      _posicionActual = posicion;
+      await _cargarDatosDelMapa();
+    } catch (e) {
+      print("Error obteniendo ubicación: $e");
+      // Si falla GPS, intentamos cargar datos igual
+      await _cargarDatosDelMapa();
+    }
   }
 
-  // Función para crear los Markers y gestionar la navegación
-  void _actualizarMapa(Position centro, List<Incidencia> incidencias) {
+  /// Carga Incidencias Y Alertas al mismo tiempo
+  Future<void> _cargarDatosDelMapa() async {
+    try {
+      // Cargamos ambas listas en paralelo
+      final resultados = await Future.wait([
+        DB.mostrarIncidenciasPendientes(), // índice 0
+        DB.mostrarAlertasPendientes()      // índice 1
+      ]);
+
+      if (!mounted) return;
+
+      final incidencias = resultados[0] as List<Incidencia>;
+      final alertas = resultados[1] as List<AlertaPanico>;
+
+      _generarMarkers(incidencias, alertas);
+
+      setState(() {
+        _cargando = false;
+      });
+
+    } catch (e) {
+      print("Error cargando datos del mapa: $e");
+    }
+  }
+
+  void _generarMarkers(List<Incidencia> incidencias, List<AlertaPanico> alertas) {
     Set<Marker> nuevosMarkers = {};
 
-    if (_mapController != null) {
-      _mapController!.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(
-            target: LatLng(centro.latitude, centro.longitude),
-            zoom: 15,
-          ),
-        ),
-      );
-    }
-
+    // 1. MARCADORES DE INCIDENCIAS (Rojos/Naranjas)
     for (var incidencia in incidencias) {
-      // Si la ubicación es nula, se salta este elemento
-      if (incidencia.ubicacion == null) continue;
+      if (incidencia.ubicacion.latitude == 0 && incidencia.ubicacion.longitude == 0) continue;
 
       final marker = Marker(
-        markerId: MarkerId(incidencia.id),
-        // Usamos el operador ! para acceder a latitud/longitud, confiando en el 'continue' de arriba
-        position: LatLng(incidencia.ubicacion!.latitude, incidencia.ubicacion!.longitude),
+        markerId: MarkerId("inc_${incidencia.id}"), // Prefijo para evitar IDs duplicados
+        position: LatLng(
+          incidencia.ubicacion.latitude,
+          incidencia.ubicacion.longitude,
+        ),
         infoWindow: InfoWindow(
-          // 🚨 Muestra el nombre del residente 🚨
-          title: 'Alerta de: ${incidencia.nombreResidente}',
-          snippet: incidencia.detalles ?? 'Estado: ${incidencia.estado}',
-
-          // 🚨 ACCIÓN CLAVE: Navegación y recarga 🚨
+          title: 'Reporte: ${incidencia.nombreResidente ?? "Desconocido"}',
+          snippet: incidencia.estado,
           onTap: () async {
-            // Navega a la pantalla de gestión y espera que regrese un resultado
             final result = await Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => IncidenciaDetalleScreen(incidencia: incidencia),
+                builder: (context) =>
+                    IncidenciaDetalleScreen(incidencia: incidencia),
               ),
             );
-
-            // Si el resultado es 'true' (el estado se cambió), recargar el mapa
+            if (!mounted) return;
             if (result == true) {
-              setState(() {
-                _incidenciasFuture = _cargarDatosDelMapa();
-              });
+              _cargarDatosDelMapa(); // Recargar si hubo cambios
             }
           },
         ),
-        icon: incidencia.estado == 'Pendiente'
-            ? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed) // Rojo para Pendiente
-            : BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange), // Naranja para En Curso
+        icon: incidencia.estado.toLowerCase() == 'pendiente'
+            ? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed)
+            : BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
       );
       nuevosMarkers.add(marker);
     }
+
+    // 2. MARCADORES DE ALERTAS DE PÁNICO (Violetas) 🟣
+    for (var alerta in alertas) {
+      if (alerta.ubicacion.latitude == 0 && alerta.ubicacion.longitude == 0) continue;
+
+      final marker = Marker(
+        markerId: MarkerId("sos_${alerta.id}"),
+        position: LatLng(
+          alerta.ubicacion.latitude,
+          alerta.ubicacion.longitude,
+        ),
+        infoWindow: InfoWindow(
+          title: '🚨 SOS: ${alerta.nombreResidente ?? "Desconocido"}',
+          snippet: 'Hora: ${alerta.fecha.toDate().toLocal().toString().substring(11, 16)}',
+          onTap: () {
+            // Al tocar una alerta, mostramos diálogo rápido para atender
+            _mostrarDialogoAtenderAlerta(alerta);
+          },
+        ),
+        // Color Violeta para distinguir urgencia
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueViolet),
+      );
+      nuevosMarkers.add(marker);
+    }
+
+    if (!mounted) return;
 
     setState(() {
       _markers = nuevosMarkers;
     });
   }
 
+  void _mostrarDialogoAtenderAlerta(AlertaPanico alerta) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("🚨 Alerta SOS"),
+        content: Text("Ubicación de emergencia de ${alerta.nombreResidente}.\n\n¿Deseas marcarla como atendida?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cerrar")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await DB.atenderAlerta(alerta.id);
+              if (mounted) {
+                _cargarDatosDelMapa(); // Recargar para quitar el pin
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Alerta atendida")),
+                );
+              }
+            },
+            child: const Text("MARCAR ATENDIDA"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _mapController?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<Incidencia>>(
-      future: _incidenciasFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    if (_cargando && _posicionActual == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-        if (snapshot.hasError) {
-          return Center(
-            child: Text("Error al cargar mapa y datos: ${snapshot.error}", textAlign: TextAlign.center),
+    final LatLng target = _posicionActual != null
+        ? LatLng(_posicionActual!.latitude, _posicionActual!.longitude)
+        : _posicionInicial.target;
+
+    return GoogleMap(
+      mapType: MapType.normal,
+      initialCameraPosition: CameraPosition(
+        target: target,
+        zoom: 15,
+      ),
+      markers: _markers,
+      myLocationEnabled: true,
+      myLocationButtonEnabled: true,
+      zoomControlsEnabled: true,
+      onMapCreated: (GoogleMapController controller) {
+        _mapController = controller;
+        if (_posicionActual != null && mounted) {
+          _mapController!.animateCamera(
+            CameraUpdate.newCameraPosition(
+              CameraPosition(
+                target: LatLng(_posicionActual!.latitude, _posicionActual!.longitude),
+                zoom: 15,
+              ),
+            ),
           );
         }
-
-        // Si no hay datos (snapshot.data es null o vacío) pero el FutureBuilder ya terminó
-        final LatLng initialTarget = _posicionActual != null
-            ? LatLng(_posicionActual!.latitude, _posicionActual!.longitude)
-            : _posicionInicial.target;
-
-        final double initialZoom = _posicionActual != null ? 15 : _posicionInicial.zoom;
-
-
-        return GoogleMap(
-          mapType: MapType.normal,
-          initialCameraPosition: CameraPosition(
-            target: initialTarget,
-            zoom: initialZoom,
-          ),
-          markers: _markers,
-          onMapCreated: (GoogleMapController controller) {
-            _mapController = controller;
-            // Solo llamar a _actualizarMapa aquí si ya tenemos datos y posición
-            if (snapshot.hasData && _posicionActual != null) {
-              _actualizarMapa(_posicionActual!, snapshot.data!);
-            }
-          },
-          myLocationEnabled: true,
-          zoomControlsEnabled: true,
-        );
       },
     );
   }

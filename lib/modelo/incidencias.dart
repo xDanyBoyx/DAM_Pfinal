@@ -1,28 +1,23 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Incidencia {
-  // ID del documento en Firestore
   final String id;
+  final String emailResidente;      // identificador por email, NO id
+  final String? nombreResidente;    // se llena después con lookup por email
 
-  // Datos de la alerta
-  final String idResidente;
-  // 🚨 NUEVO CAMPO: Nombre del residente para mostrar en la interfaz
-  final String? nombreResidente;
-  final GeoPoint ubicacion; // Crucial para el mapa (G-2) y geocercado (G-4)
+  final GeoPoint ubicacion;
   final Timestamp timestamp;
 
-  // Estado y validación
-  String estado; // 'Pendiente', 'En Curso', 'Resuelta'
-  bool zonaValida; // Resultado del geocercado del servidor
+  String estado; // "Pendiente", "En Curso", "Resuelta"
+  bool zonaValida;
 
-  // Información adicional
   final String? motivoInvalidez;
   final String? detalles;
   final Timestamp? ultimaActualizacion;
 
   Incidencia({
     required this.id,
-    required this.idResidente,
+    required this.emailResidente,
     this.nombreResidente,
     required this.ubicacion,
     required this.timestamp,
@@ -33,38 +28,97 @@ class Incidencia {
     this.ultimaActualizacion,
   });
 
-  // Constructor para crear la Incidencia a partir de datos de Firestore
-  factory Incidencia.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-
+  /// --- copyWith CORREGIDO (usa emailResidente, no idResidente) ---
+  Incidencia copyWith({
+    String? id,
+    String? emailResidente,
+    String? nombreResidente,
+    GeoPoint? ubicacion,
+    Timestamp? timestamp,
+    String? estado,
+    bool? zonaValida,
+    String? motivoInvalidez,
+    String? detalles,
+    Timestamp? ultimaActualizacion,
+  }) {
     return Incidencia(
-      id: doc.id,
-      idResidente: data['id_residente'] ?? '',
-      // NOTA: Este campo se llenará con la búsqueda en el controlador DB,
-      // no directamente desde el documento de incidencia original.
-      nombreResidente: null,
-      ubicacion: data['ubicacion'] as GeoPoint,
-      timestamp: data['timestamp'] as Timestamp,
-      estado: data['estado'] ?? 'Pendiente',
-      zonaValida: data['zona_valida'] ?? false,
-      motivoInvalidez: data['motivo_invalidez'] as String?,
-      detalles: data['detalles'] as String?,
-      ultimaActualizacion: data['ultima_actualizacion'] as Timestamp?,
+      id: id ?? this.id,
+      emailResidente: emailResidente ?? this.emailResidente,
+      nombreResidente: nombreResidente ?? this.nombreResidente,
+      ubicacion: ubicacion ?? this.ubicacion,
+      timestamp: timestamp ?? this.timestamp,
+      estado: estado ?? this.estado,
+      zonaValida: zonaValida ?? this.zonaValida,
+      motivoInvalidez: motivoInvalidez ?? this.motivoInvalidez,
+      detalles: detalles ?? this.detalles,
+      ultimaActualizacion: ultimaActualizacion ?? this.ultimaActualizacion,
     );
   }
 
-  // Método para convertir el objeto a un mapa (usado para crear)
+  /// --- Factory from Firestore (seguro ante nulos/tipos) ---
+  factory Incidencia.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>? ?? {};
+
+    return Incidencia(
+      id: doc.id,
+
+      /// String seguro
+      emailResidente: data['email_residente'] is String
+          ? data['email_residente']
+          : '',
+
+      /// Este campo lo obtienes luego vía lookup por email
+      nombreResidente: null,
+
+      /// GeoPoint seguro
+      ubicacion: data['ubicacion'] is GeoPoint
+          ? data['ubicacion']
+          : const GeoPoint(0, 0),
+
+      /// Timestamp seguro
+      timestamp: data['timestamp'] is Timestamp
+          ? data['timestamp']
+          : Timestamp.now(),
+
+      /// Estado seguro (String)
+      estado: data['estado'] is String
+          ? data['estado']
+          : 'Pendiente',
+
+      /// Boolean seguro
+      zonaValida: data['zona_valida'] is bool
+          ? data['zona_valida']
+          : false,
+
+      /// Campos opcionales tipo String
+      motivoInvalidez: data['motivo_invalidez'] is String
+          ? data['motivo_invalidez']
+          : null,
+
+      detalles: data['detalles'] is String
+          ? data['detalles']
+          : null,
+
+      /// Timestamp opcional seguro
+      ultimaActualizacion: data['ultima_actualizacion'] is Timestamp
+          ? data['ultima_actualizacion']
+          : null,
+    );
+  }
+
+
+  /// --- toMap para guardar en Firestore ---
   Map<String, dynamic> toMap() {
-    return {
-      'id_residente': idResidente,
-      // No incluimos nombreResidente, ya que no se guarda en la DB de incidencias.
+    final map = <String, dynamic>{
+      'email_residente': emailResidente,
       'ubicacion': ubicacion,
       'timestamp': timestamp,
       'estado': estado,
       'zona_valida': zonaValida,
-      'motivo_invalidez': motivoInvalidez,
-      'detalles': detalles,
-      'ultima_actualizacion': ultimaActualizacion,
     };
+    if (motivoInvalidez != null) map['motivo_invalidez'] = motivoInvalidez;
+    if (detalles != null) map['detalles'] = detalles;
+    if (ultimaActualizacion != null) map['ultima_actualizacion'] = ultimaActualizacion;
+    return map;
   }
 }
