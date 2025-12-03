@@ -1,4 +1,3 @@
-//IMPORTACIÓN PAQUETERÍAS UTILIZADAS
 import 'package:dam_pfinal/modelo/guardia.dart';
 import 'package:dam_pfinal/ventana1.dart';
 import 'package:dam_pfinal/ventana2.dart';
@@ -8,7 +7,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'authentication/authentication.dart';
 import 'controlador/basededatos.dart';
 import 'formulario_registro.dart';
-import 'notification/notificaciones.dart'; // <-- IMPORTAMOS LA CLASE DE NOTIFICACIONES
+import 'notification/notificaciones.dart';
+import 'residente_nuevo_reporte.dart';
 
 //LLAMADA DE CLASE A EJECUTAR
 void main() async {

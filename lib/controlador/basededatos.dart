@@ -50,7 +50,6 @@ class DB {
 
         return Residente(
           id: doc.id,
-          // 🛡️ CORREGIDO: Protección contra nulos
           name: (data['name'] as String?) ?? 'Sin Nombre',
           edad: data['edad'],
           calle: (domicilio['calle'] as String?) ?? '',
@@ -157,8 +156,55 @@ class DB {
     }
   }
 
+  static Future<String> crearIncidenciaManual(
+      String idResidente,
+      String emailResidente,
+      String titulo,
+      String mensaje,
+      GeoPoint ubicacion,
+      ) async {
+      try {
+        String detalles = "Título: $titulo\n\nDetalles:\n$mensaje";
+
+        Map<String, dynamic> datosIncidencia = {
+          'email_residente': emailResidente,
+          'ubicacion': ubicacion,
+          'timestamp': FieldValue.serverTimestamp(),
+          'estado': 'Pendiente', // 'Pendiente' = 'No atendido' (Estado inicial)
+          'zona_valida': true, // Asumimos que es válido si es un reporte manual
+          'detalles': detalles,
+          'ultima_actualizacion': FieldValue.serverTimestamp(),
+        };
+
+        await baseRemota.collection("incidencias").add(datosIncidencia);
+        return "ok";
+      } catch (e) {
+        print("Error al crear incidencia manual: $e");
+        return "Error al crear la incidencia: $e";
+      }
+    }
+
+  // R-3: Stream para obtener el historial de incidencias de un residente específico
+  static Stream<List<Incidencia>> streamIncidenciasPorResidente(String emailResidente) {
+    return baseRemota
+        .collection("incidencias")
+        .where('email_residente', isEqualTo: emailResidente) // Filtro por el email del usuario logueado
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      List<Incidencia> listaIncidencias = [];
+      for (var doc in snapshot.docs) {
+        // Usamos el constructor de fábrica de Incidencia
+        listaIncidencias.add(Incidencia.fromFirestore(doc));
+      }
+      return listaIncidencias;
+    });
+  }
+
+
+
   // ====================================================================
-  // ALERTAS DE PÁNICO (STREAM) 🚨
+  // ALERTAS DE PÁNICO (STREAM)
   // ====================================================================
 
   /// Escuchar alertas en TIEMPO REAL
@@ -250,9 +296,6 @@ class DB {
     }
   }
 
-  // AVISOS
-
-
   static Future<String> crearAviso(Aviso aviso) async {
     try {
       await baseRemota.collection("avisos").add(aviso.toMap());
@@ -339,6 +382,8 @@ class DB {
       return listaIncidencias;
     });
   }
+
+
 
 
 }
