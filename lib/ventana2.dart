@@ -6,12 +6,14 @@ import 'package:dam_pfinal/authentication/authentication.dart';
 import 'package:dam_pfinal/controlador/basededatos.dart';
 import 'package:dam_pfinal/modelo/aviso.dart';
 import 'package:dam_pfinal/modelo/residente.dart';
-import 'package:dam_pfinal/modelo/incidencias.dart'; // <--- Importar Incidencia
-import 'package:dam_pfinal/residente_nuevo_reporte.dart'; // <--- Importar nueva pantalla
+import 'package:dam_pfinal/modelo/incidencias.dart';
+import 'package:dam_pfinal/residente_nuevo_reporte.dart';
 import 'package:dam_pfinal/notification/notificaciones.dart';
-import 'package:intl/intl.dart'; // <--- Importar para formato de fecha
+import 'package:intl/intl.dart';
+// --- IMPORTACIONES FALTANTES ---
+import 'package:shake/shake.dart';
+import 'package:geolocator/geolocator.dart';
 
-// El nombre de la clase se mantiene como VentanaResidente y ahora requiere el UID
 class VentanaResidente extends StatefulWidget {
   final String uid;
 
@@ -23,12 +25,14 @@ class VentanaResidente extends StatefulWidget {
 
 class _VentanaResidenteState extends State<VentanaResidente> {
   late Future<Residente?> _residenteFuture;
-  int _selectedIndex = 0; // Para el BottomNavigationBar
+  int _selectedIndex = 0;
 
-  // Lista de widgets para el BottomNavigationBar
+  // --- VARIABLE PARA EL SENSOR ---
+  late ShakeDetector _shakeDetector;
+
   late final List<Widget> _widgetOptions = <Widget>[
     _pantallaAvisos(),
-    _pantallaMisReportes(), // Nuevo: Historial de reportes del residente
+    _pantallaMisReportes(),
     _pantallaPerfil(),
   ];
 
@@ -36,28 +40,130 @@ class _VentanaResidenteState extends State<VentanaResidente> {
   void initState() {
     super.initState();
 
-    // Cargar datos del residente
     _residenteFuture = obtenerDatosDeResidente(widget.uid);
-
-    // Inicializar notificaciones locales
     Notificaciones.init();
 
-    // Registrar listener solo cuando el widget esté montado
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         Notificaciones.escucharAvisos();
       }
     });
+
+    // --- AQUÍ ACTIVAMOS EL SENSOR DE AGITACIÓN ---
+    _shakeDetector = ShakeDetector.autoStart(
+      shakeThresholdGravity: 2.7, // Ajuste de sensibilidad
+      onPhoneShake: (ShakeEvent event) {
+        // Al agitar, llamamos a la función de pánico
+        print("¡SHAKE DETECTADO!");
+        Notificaciones.mostrar(
+          "Procesando Alerta...",
+          "Obteniendo ubicación y enviando datos.",
+        );
+        guardarAlertaDePanico();
+      },
+    );
   }
 
-  // --- Funciones de navegación y datos ---
+  // --- IMPORTANTE: APAGAR EL SENSOR AL SALIR ---
+  @override
+  void dispose() {
+    _shakeDetector.stopListening();
+    super.dispose();
+  }
+
+  // =========================================================================
+  //  LÓGICA DEL BOTÓN DE PÁNICO (Traída del código de tu compañero)
+  // =========================================================================
+
+  Future<Position?> _obtenerUbicacionActual() async {
+    bool servicioHabilitado = await Geolocator.isLocationServiceEnabled();
+    if (!servicioHabilitado) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Por favor, activa el servicio de ubicación (GPS).')));
+      }
+      return null;
+    }
+
+    LocationPermission permiso = await Geolocator.checkPermission();
+    if (permiso == LocationPermission.denied) {
+      permiso = await Geolocator.requestPermission();
+      if (permiso == LocationPermission.denied) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('El permiso de ubicación fue denegado.')));
+        }
+        return null;
+      }
+    }
+
+    if (permiso == LocationPermission.deniedForever) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('La app necesita permisos de ubicación. Actívalos en la configuración.')));
+      }
+      return null;
+    }
+
+    return await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+  }
+
+  Future<void> guardarAlertaDePanico() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      print("Error: No hay usuario logueado para enviar alerta.");
+      return;
+    }
+
+    final Position? ubicacion = await _obtenerUbicacionActual();
+
+    if (ubicacion == null) {
+      print("Error: No se pudo obtener la ubicación.");
+      Notificaciones.mostrar(
+        "Fallo al Enviar Alerta",
+        "No se pudo obtener tu ubicación. Revisa los permisos y el GPS.",
+      );
+      return;
+    }
+
+    print("Ubicación obtenida: Lat ${ubicacion.latitude}, Lon ${ubicacion.longitude}");
+
+    final String usuarioEmail = user.email ?? "Email no disponible";
+    final DateTime ahora = DateTime.now();
+
+    try {
+      // Guardamos en la colección 'alertas_panico'
+      await FirebaseFirestore.instance.collection('alertas_panico').add({
+        'activadaPor': usuarioEmail,
+        'fecha': Timestamp.fromDate(ahora),
+        'atendida': false,
+        'residenteId': user.uid,
+        'ubicacion': GeoPoint(ubicacion.latitude, ubicacion.longitude),
+      });
+
+      Notificaciones.mostrar(
+        "¡Alerta Enviada!",
+        "Tu alerta y ubicación han sido enviadas correctamente.",
+      );
+
+    } catch (e) {
+      print("Error al guardar en Firebase: $e");
+      Notificaciones.mostrar(
+        "Error de Conexión",
+        "No se pudo guardar la alerta en la base de datos.",
+      );
+    }
+  }
+
+  // =========================================================================
+  //  RESTO DE TU CÓDIGO (Navegación y UI)
+  // =========================================================================
 
   Future<Residente?> obtenerDatosDeResidente(String uid) async {
     try {
       DocumentSnapshot doc = await FirebaseFirestore.instance.collection('residente').doc(uid).get();
       if (doc.exists) {
-        // Asumiendo que el modelo Residente tiene un factory constructor fromFirestore
         return Residente.fromFirestore(doc.data() as Map<String, dynamic>, doc.id);
       }
     } catch (e) {
@@ -111,7 +217,6 @@ class _VentanaResidenteState extends State<VentanaResidente> {
 
   // --- Widgets de Pantallas ---
 
-  // R-3: NUEVA PANTALLA: Historial de reportes creados por el Residente
   Widget _pantallaMisReportes() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || user.email == null) {
@@ -150,16 +255,13 @@ class _VentanaResidenteState extends State<VentanaResidente> {
     );
   }
 
-  // Tarjeta de reporte para el historial del residente
   Widget _reporteCard(Incidencia incidencia) {
     final fechaFormateada = DateFormat('dd MMM, hh:mm a').format(incidencia.timestamp.toDate());
 
-    // Mapeo de estados
     final String estadoTexto;
     Color estadoColor;
     IconData estadoIcono;
 
-    // Los reportes manuales son 'Pendiente' (Sin atender) o 'Resuelta' (Atendido)
     if (incidencia.estado == 'Resuelta') {
       estadoTexto = 'Atendido';
       estadoColor = Colors.green.shade700;
@@ -170,7 +272,6 @@ class _VentanaResidenteState extends State<VentanaResidente> {
       estadoIcono = Icons.watch_later;
     }
 
-    // Asumimos que el título está al inicio de los detalles y lo separamos
     final detallesCompleto = incidencia.detalles ?? "Sin detalles";
     final lineas = detallesCompleto.split('\n');
     final titulo = lineas.isNotEmpty && lineas[0].startsWith('Título:')
@@ -212,19 +313,16 @@ class _VentanaResidenteState extends State<VentanaResidente> {
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         isThreeLine: true,
         onTap: () {
-          // Implementar navegación a detalle si es necesario
           print('Reporte seleccionado: ${incidencia.id}');
         },
       ),
     );
   }
 
-  // R-4: Pantalla para mostrar la lista de Avisos (FutureBuilder para la BD)
   Widget _pantallaAvisos() {
     return FutureBuilder<List<Aviso>>(
       future: DB.mostrarAvisos(),
       builder: (context, snapshot) {
-        // ... (Tu código existente para mostrar avisos) ...
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -260,7 +358,6 @@ class _VentanaResidenteState extends State<VentanaResidente> {
     );
   }
 
-  // R-5: Placeholder para la pantalla de Perfil
   Widget _pantallaPerfil() {
     return FutureBuilder<Residente?>(
       future: _residenteFuture,
@@ -326,8 +423,6 @@ class _VentanaResidenteState extends State<VentanaResidente> {
     );
   }
 
-  // --- Widget Principal (Build) ---
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -344,7 +439,7 @@ class _VentanaResidenteState extends State<VentanaResidente> {
         child: _widgetOptions.elementAt(_selectedIndex),
       ),
 
-      floatingActionButton: _selectedIndex == 1 // Muestra el botón solo si la pestaña de reportes está activa
+      floatingActionButton: _selectedIndex == 1
           ? FloatingActionButton(
         onPressed: _navegarANuevoReporte,
         backgroundColor: Colors.red.shade700,
@@ -352,7 +447,7 @@ class _VentanaResidenteState extends State<VentanaResidente> {
         child: const Icon(Icons.add_alert),
         tooltip: 'Generar Nuevo Reporte Manual',
       )
-          : null, // Oculta el botón en las otras pestañas
+          : null,
 
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
@@ -361,7 +456,7 @@ class _VentanaResidenteState extends State<VentanaResidente> {
             label: 'Avisos',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.history), // Ícono para historial/reportes
+            icon: Icon(Icons.history),
             label: 'Mis Reportes',
           ),
           BottomNavigationBarItem(
