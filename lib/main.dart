@@ -9,11 +9,23 @@ import 'controlador/basededatos.dart';
 import 'formulario_registro.dart';
 import 'notification/notificaciones.dart';
 import 'residente_nuevo_reporte.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+// Función para pedir permisos
+Future<void> solicitarPermisos() async {
+  // Pedir ubicación
+  await Permission.location.request();
+  // Pedir notificaciones
+  await Permission.notification.request();
+}
 
 //LLAMADA DE CLASE A EJECUTAR
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+
+  // solicitamos permiosos
+  await solicitarPermisos();
 
   // Inicializamos las notificaciones
   await Notificaciones.init();
